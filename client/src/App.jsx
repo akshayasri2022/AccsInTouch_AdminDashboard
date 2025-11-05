@@ -4,6 +4,7 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 /* Pages */
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import ProductManagement from "./pages/ProductManagement";
 
 
 function RequireAuth({ children }) {
@@ -41,6 +42,9 @@ export default function App() {
           </RequireAuth>
         }
       />
+
+  <Route path="/product-management" element={<ProductManagement />} />
+
 
       
       <Route

@@ -1,0 +1,143 @@
+/* AddProductForm Page Styles */
+.add-product-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: fadeIn 0.25s ease-in;
+}
+
+/* Header with breadcrumb + buttons */
+.add-product-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.breadcrumb {
+  font-size: 13px;
+  color: #7b7b8a;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+/* Common Card */
+.card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 18px;
+  box-shadow: 0 6px 20px rgba(23, 23, 38, 0.04);
+}
+
+.card-title {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: #222;
+}
+
+/* Form elements */
+.form-row { margin-bottom: 12px; }
+.form-row.two { display: flex; gap: 12px; }
+.form-row.three { display: flex; gap: 12px; }
+
+.input,
+.textarea,
+.select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #eceaf1;
+  font-size: 14px;
+  background: #fafafa;
+}
+
+.textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+/* Media Section */
+.media-dropzone {
+  border: 2px dashed #eceaf8;
+  border-radius: 10px;
+  padding: 26px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+}
+
+.media-dropzone.large {
+  padding: 30px;
+}
+
+.media-preview {
+  max-width: 280px;
+  border-radius: 6px;
+  display: block;
+  margin: 0 auto 10px;
+}
+
+.media-note {
+  color: #82809a;
+  font-size: 13px;
+}
+
+/* Buttons */
+.btn {
+  background: #5d4afe;
+  color: #fff;
+  padding: 9px 14px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.btn:hover {
+  background: #4938d3;
+}
+
+.btn.small {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.btn.ghost {
+  background: transparent;
+  color: #5d4afe;
+  border: 1px solid #e9e6ff;
+}
+
+.btn.outline {
+  background: transparent;
+  color: #5d4afe;
+  border: 1px dashed #e6e2ff;
+}
+
+.btn.cancel {
+  background: #fff;
+  color: #666;
+  border: 1px solid #eee;
+}
+
+/* Shipping section */
+.shipping-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+/* Animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
