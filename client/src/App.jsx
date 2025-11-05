@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import ProductManagement from "./pages/ProductManagement";
+import EditProduct from "./pages/EditProduct";
+
 
 function App() {
   return (
@@ -16,6 +18,7 @@ function App() {
         {/* Product management */}
         <Route path="/ProductManagement" element={<ProductManagement />} />
         <Route path="/ProductManagement/add" element={<ProductManagement />} />
+        <Route path="/ProductManagement/edit/:id" element={<EditProduct />} />
 
         {/* Fallback: redirect any unknown path to /dashboard (or change to / if you prefer) */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
