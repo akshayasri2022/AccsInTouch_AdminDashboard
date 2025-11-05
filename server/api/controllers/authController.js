@@ -12,6 +12,7 @@ const loginUser = async (req, res) => {
       token,
       role,
       fullName,
+      email,
     });
   } catch (error) {
     console.error("Login Error:", error);
