@@ -4,15 +4,45 @@ import Topbar from "../components/Topbar";
 import StatsCard from "../components/StatsCard";
 import OrdersList from "../components/OrdersList";
 import SummaryChart from "../components/SummaryChart";
+
+/* Modular CSS imports */
+import "../styles/Sidebar.css";
+import "../styles/Topbar.css";
 import "../styles/Dashboard.css";
+import "../styles/StatsCard.css";
+import "../styles/Panels.css";
+
 
 export default function Dashboard() {
-  // sample stats
+  // exactly three cards matching the screenshot; pass variant/topMeta/meta
   const stats = [
-    { title: "Abandoned Cart", value: "20%", subtitle: "+0.00%" },
-    { title: "Customers", value: "1,250", subtitle: "+6.80%" },
-    { title: "Active", value: "1,180", subtitle: "-4.90%" },
-    { title: "All Orders", value: "0", subtitle: "—" },
+    {
+      title: "Abandoned Cart",
+      value: "20%",
+      subtitle: "+0.00%",
+      topMeta: "Customers",
+      meta: [{ label: "Customers", value: "30" }],
+      variant: "cart",
+    },
+    {
+      title: "Customers",
+      value: "1,250",
+      subtitle: "+15.80%",
+      topMeta: "Active",
+      meta: [{ label: "Active", value: "1,180" }],
+      variant: "customers",
+    },
+    {
+      title: "All Orders",
+      value: "0",
+      subtitle: "—",
+      topMeta: "",
+      meta: [
+        { label: "Pending", value: "0" },
+        { label: "Completed", value: "0", extra: "+0.00%" },
+      ],
+      variant: "orders",
+    },
   ];
 
   return (
@@ -59,7 +89,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-      </div>
+      </div> 
     </div>
   );
 }

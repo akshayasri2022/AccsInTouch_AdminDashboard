@@ -1,0 +1,445 @@
+/* src/styles/EditProduct.css
+   Full stylesheet with updated button styles to match the provided reference.
+   Buttons are equal width and height and responsive.
+*/
+
+:root {
+  /* change this width to make the action buttons wider/narrower */
+  --action-btn-width: 170px;
+  --action-btn-height: 44px;
+  --icon-box-size: 32px;
+  --btn-radius: 12px;
+  --cancel-border: rgba(99, 102, 241, 0.06);
+  --cancel-inner-border: rgba(99, 102, 241, 0.12);
+  --magenta-start: #b31b8a;
+  --magenta-end: #8a1168;
+}
+
+.add-product-container {
+  width: 100%;
+  padding: 20px;
+  box-sizing: border-box;
+  color: #111827;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* ===== Topbar section above form ===== */
+.add-product-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.add-product-top .breadcrumb {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 600;
+  gap: 6px;
+}
+.breadcrumb .crumb-current {
+  color: #4f46e5;
+  font-weight: 700;
+}
+
+/* top buttons container */
+.top-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* common button base */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: transform 0.08s ease, box-shadow 0.12s ease, opacity 0.08s ease;
+  -webkit-tap-highlight-color: transparent;
+  /* enforce equal size */
+  width: var(--action-btn-width);
+  height: var(--action-btn-height);
+  padding: 0 14px;
+  border-radius: var(--btn-radius);
+  justify-content: flex-start; /* icon + text left-aligned inside the fixed-width button */
+}
+
+/* icon box / icon circle (left) */
+.icon-box,
+.icon-circle {
+  width: var(--icon-box-size);
+  height: var(--icon-box-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  flex: 0 0 var(--icon-box-size);
+  margin-right: 8px;
+}
+
+/* Cancel button (outlined) */
+.btn.cancel.outlined {
+  background: #fff;
+  color: #374151;
+  border: 1px solid var(--cancel-border);
+  font-weight: 600;
+  font-size: 13px;
+  box-shadow: 0 1px 0 rgba(16,24,40,0.02) inset;
+}
+
+/* Cancel icon square specifics */
+.btn.cancel.outlined .icon-circle {
+  background: #ffffff;
+  border: 1px solid var(--cancel-inner-border);
+  color: #6b7280;
+  box-shadow: 0 1px 0 rgba(16,24,40,0.02);
+}
+
+/* Cancel hover/focus */
+.btn.cancel.outlined:hover {
+  background: #fbfdff;
+  transform: translateY(-1px);
+}
+.btn.cancel.outlined:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(99,102,241,0.06);
+  border-color: rgba(99,102,241,0.16);
+}
+
+/* Save button (filled) */
+.btn.add-product.filled {
+  background: linear-gradient(180deg, var(--magenta-start), var(--magenta-end));
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 6px 16px rgba(139, 17, 104, 0.22);
+}
+
+/* Save icon box specifics */
+.btn.add-product.filled .icon-box {
+  background: rgba(255,255,255,0.12);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset;
+}
+
+/* make inner svgs consistent */
+.icon-box svg,
+.icon-circle svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+  pointer-events: none;
+  fill: currentColor;
+}
+
+/* keep btn-text left aligned and allow wrap */
+.btn .btn-text {
+  line-height: 1.05;
+  display: inline-block;
+  text-align: left;
+  white-space: normal;
+}
+
+/* hover / focus for save */
+.btn.add-product.filled:hover {
+  transform: translateY(-1px);
+  opacity: 0.98;
+}
+.btn.add-product.filled:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(179,27,138,0.12);
+}
+
+/* Layout & other styles (kept from original) */
+.add-product-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+.add-left {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.add-right {
+  width: 280px;
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Card */
+.card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(16, 24, 40, 0.04);
+  padding: 16px 18px;
+  margin-bottom: 18px;
+  box-sizing: border-box;
+}
+.card-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 14px;
+  color: #111827;
+}
+
+/* Form */
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.form-row.two {
+  flex-direction: row;
+  gap: 10px;
+}
+.form-row.three {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.form-row.four {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.input,
+.textarea,
+.select {
+  border: 1px solid rgba(16, 24, 40, 0.06);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #111827;
+  background: #fff;
+  box-sizing: border-box;
+  width: 100%;
+  font-family: inherit;
+  outline: none;
+}
+.input:focus,
+.textarea:focus,
+.select:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.08);
+}
+.textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+/* Media - Shopify-like large dashed area + inner box + centered add button */
+.media-dropzone {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px dashed rgba(99, 102, 241, 0.23);
+  background: rgba(245, 247, 255, 0.85);
+  padding: 36px 22px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  text-align: center;
+}
+
+/* Inner rounded square that holds the icon or image */
+.media-dropzone .media-inner {
+  width: 116px;
+  height: 116px;
+  border-radius: 12px;
+  background: white;
+  border: 1px dashed rgba(99,102,241,0.12);
+  box-shadow: 0 4px 18px rgba(99,102,241,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Icon inside the inner square */
+.media-dropzone .media-inner svg,
+.media-dropzone .media-inner img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  display: block;
+}
+
+/* descriptive note under the icon */
+.media-dropzone .media-note {
+  font-size: 13px;
+  color: #6b7280;
+  text-align: center;
+  max-width: 60ch;
+  line-height: 1.4;
+}
+
+/* centered Add Image button (pill with subtle shadow) */
+.media-dropzone .media-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 128px;
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  background: linear-gradient(180deg, #ffffff, #f7f3ff);
+  color: #6b46b6;
+  border: 1px solid rgba(99,102,241,0.18);
+  box-shadow: 0 8px 20px rgba(107, 35, 122, 0.12);
+  cursor: pointer;
+}
+
+/* hover/focus */
+.media-dropzone .media-add-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(107,35,122,0.14);
+}
+
+/* When actual thumbnails are present, show them in a centered row */
+.media-dropzone .thumbnails {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+}
+.media-dropzone .thumb {
+  width: 92px;
+  height: 92px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(16,24,40,0.04);
+}
+.media-dropzone .thumb img {
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+}
+
+/* Media fallback small rule (legacy) */
+.media-dropzone {
+  border: 1px dashed rgba(79, 70, 229, 0.15);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  background: #fafbff;
+}
+.media-note {
+  font-size: 13px;
+  color: #9aa3b2;
+  margin: 8px 0;
+}
+
+/* small outline button */
+.btn.outline.small {
+  background: #fff;
+  border: 1px solid rgba(16, 24, 40, 0.08);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #4f46e5;
+  font-weight: 600;
+}
+.btn.outline.small:hover {
+  background: #f5f6ff;
+}
+
+/* Variation */
+.btn.ghost.small {
+  background: rgba(99, 102, 241, 0.06);
+  color: #4f46e5;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn.ghost.small:hover {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+/* Sidebar */
+.sidebar-card {
+  padding: 14px 16px;
+}
+.label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+.select {
+  width: 100%;
+}
+
+/* Tag badge */
+.tag {
+  background: #f3f0ff;
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: #6d28d9;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Shipping */
+.shipping-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #4f46e5;
+  font-size: 14px;
+}
+.shipping-toggle input {
+  width: 16px;
+  height: 16px;
+}
+
+/* Responsive: shrink equal buttons on smaller screens */
+@media (max-width: 520px) {
+  :root {
+    --action-btn-width: 140px;
+    --action-btn-height: 40px;
+    --icon-box-size: 28px;
+  }
+
+  .top-buttons {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 360px) {
+  :root {
+    --action-btn-width: 120px;
+    --action-btn-height: 38px;
+    --icon-box-size: 26px;
+  }
+  .btn .btn-text { font-size: 13px; }
+}
+
+/* Default layout responsive adjustments */
+@media (max-width: 1024px) {
+  .add-product-layout {
+    flex-direction: column;
+  }
+  .add-right {
+    width: 100%;
+  }
+}

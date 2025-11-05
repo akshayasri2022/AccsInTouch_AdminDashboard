@@ -11,6 +11,8 @@ const PORT = process.env.DB_PORT;
 
 const userRouter = require("./api/routers/userRouter");
 const authRouter = require("./api/routers/authRouter");
+const customerRouter= require("./api/routers/customerRouter");
+const orderRouter=require("./api/routers/orderRouter");
 
 const corsOpts = {
   origin: (origin, callback) => {
@@ -31,8 +33,8 @@ app.use(bodyParser.urlencoded({ limit: '200mb', extended: true })); // Increase 
 defineAssociations();
 app.use("/api", userRouter);
 app.use("/api", authRouter);
-// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-// app.use('/processed_tiles', express.static(path.join(__dirname, 'processed_tiles')));
+app.use("/api", customerRouter);
+app.use("/api", orderRouter);
 app.get("/", (req, res) => {
   res.send("Welcome to the user API");
 });
