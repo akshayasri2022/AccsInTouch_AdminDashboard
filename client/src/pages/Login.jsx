@@ -35,7 +35,7 @@ export default function Login() {
 
       // Mock authentication success
       localStorage.setItem("isAuthenticated", "true");
-      navigate("/dashboard");
+      navigate("/adminDashboard");
     } catch (err) {
       setError("Login failed. Try again.");
     } finally {
@@ -88,7 +88,7 @@ export default function Login() {
           {loading ? "Signing in..." : "Sign in"}
         </button>
 
-        <div className="footer-row">
+        {/* <div className="footer-row">
           <button
             type="button"
             className="link-btn"
@@ -96,7 +96,7 @@ export default function Login() {
           >
             Forgot password?
           </button>
-        </div>
+        </div> */}
       </form>
     </div>
   );
