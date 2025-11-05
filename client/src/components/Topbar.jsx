@@ -1,6 +1,7 @@
 import React from "react";
 import { FaBell, FaUserCircle } from "react-icons/fa";
-import "../styles/Dashboard.css";
+import "../styles/Topbar.css";
+
 
 export default function Topbar() {
   return (

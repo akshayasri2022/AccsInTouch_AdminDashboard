@@ -1,25 +1,19 @@
-/* Dashboard.css - layout & visual styles (corrected for full-width) */
-
 :root {
-  --sidebar-bg: #4b6bff; /* swap to your preferred blue */
-  --sidebar-width: 240px;
-  --muted: #9aa3b2;
-  --card-bg: #fff;
   --page-bg: #f6f7fb;
-  --panel-shadow: 0 8px 24px rgba(16,24,40,0.06);
+  --card-bg: #fff;
+  --muted: #9aa3b2;
+  --panel-shadow: 0 8px 24px rgba(16, 24, 40, 0.06);
 }
 
-/* ensure the app fills the viewport */
 html, body, #root {
   height: 100%;
   width: 100%;
   margin: 0;
   padding: 0;
   background: var(--page-bg);
-  font-family: "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* page layout: sidebar + main (full height & width) */
 .dashboard-root {
   display: flex;
   width: 100%;
@@ -29,95 +23,23 @@ html, body, #root {
   overflow: hidden;
 }
 
-/* Sidebar */
-.sidebar {
-  width: var(--sidebar-width);
-  flex: 0 0 var(--sidebar-width);
-  background: linear-gradient(180deg, var(--sidebar-bg), #586dff);
-  color: #fff;
-  padding: 22px 18px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 26px;
-}
-
-.logo-circle {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: rgba(255,255,255,0.18);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-weight:700;
-}
-
-.logo-text { font-weight:600; font-size:16px; }
-
-.sidebar-nav { display:flex; flex-direction:column; gap:10px; }
-
-/* Nav items */
-.nav-item {
-  display:flex;
-  align-items:center;
-  gap:12px;
-  background: transparent;
-  border: none;
-  color: #fff;
-  padding: 10px 12px;
-  border-radius: 8px;
-  text-align:left;
-  cursor: pointer;
-  font-size:14px;
-  text-decoration: none;
-}
-.nav-item svg { opacity: 0.95; }
-.nav-item.active { background: rgba(255,255,255,0.08); }
-
-/* main area (grows to fill remaining space) */
 .dashboard-main {
   flex: 1 1 auto;
-  display:flex;
-  flex-direction:column;
-  min-width: 0; /* important for flex overflow handling */
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   height: 100vh;
   overflow: hidden;
 }
 
-/* topbar */
-.topbar {
-  height: 64px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding: 0 20px;
-  background: transparent;
-  border-bottom: 1px solid rgba(16,24,40,0.04);
-  flex: 0 0 64px;
-}
-.page-title { margin: 0; font-size:18px; color:#111827; font-weight:600; }
-
-.topbar-right { display:flex; gap:10px; align-items:center; }
-.shop-select { padding:6px 10px; border-radius:8px; border:1px solid rgba(16,24,40,0.06); background:#fff; }
-.icon-btn, .avatar-btn { background: #fff; border:none; padding:8px 10px; border-radius:8px; cursor:pointer; box-shadow: 0 2px 8px rgba(16,24,40,0.04); }
-
-/* content container: takes remaining vertical space, scrolls independently */
 .dashboard-content {
   padding: 20px;
   box-sizing: border-box;
   width: 100%;
-  height: calc(100vh - 64px); /* subtract topbar height */
+  height: calc(100vh - 64px);
   overflow-y: auto;
 }
 
-/* remove centering constraint so content spans full width */
 .dashboard-grid, .container, .content-wrapper {
   max-width: none;
   width: 100%;
@@ -125,92 +47,48 @@ html, body, #root {
   box-sizing: border-box;
 }
 
-/* stats row */
 .stats-row {
-  display:flex;
-  gap:16px;
-  margin-bottom:18px;
+  display: flex;
+  gap: 16px;
+  margin-bottom: 18px;
   align-items: stretch;
 }
-.stat-card {
-  flex:1;
-  background:var(--card-bg);
-  border-radius:10px;
-  padding:14px 16px;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  box-shadow: var(--panel-shadow);
-}
-.stat-title { color: var(--muted); font-size:13px; }
-.stat-value { font-size:18px; font-weight:700; color:#111827; }
 
-/* two-column area */
 .cols {
-  display:flex;
-  gap:20px;
-  align-items:flex-start;
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
   margin-top: 12px;
 }
-.left-col { flex: 1 1 0; min-width: 0; }   /* flexible, grows */
-.right-col { width: 360px; flex: 0 0 360px; } /* fixed width right column */
 
-/* panel */
-.panel {
-  background: var(--card-bg);
-  border-radius:12px;
-  padding:16px;
-  box-shadow: var(--panel-shadow);
+.left-col {
+  flex: 1 1 0;
+  min-width: 0;
 }
-.panel-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
-.panel-head h3 { margin:0; font-size:16px; color:#111827; }
 
-/* chart wrapper */
-.chart-wrapper { padding: 8px 0; }
-
-/* Orders list */
-.orders-list {
-  display:flex;
-  flex-direction:column;
-  gap:12px;
-  max-height: calc(100vh - 220px); /* keep reasonable height inside right column */
-  overflow:auto;
-  padding-right:6px;
+.right-col {
+  width: 360px;
+  flex: 0 0 360px;
 }
-.order-row {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:10px;
-  border-radius:10px;
-  background: #fff;
-}
-.order-left { display:flex; gap:12px; align-items:center; }
-.order-thumb { width:46px; height:46px; border-radius:8px; background: linear-gradient(180deg,#ffd7b1,#ffd8b1); }
-.order-title { font-weight:600; font-size:14px; }
-.order-meta { font-size:13px; color:var(--muted); }
-.order-right { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
-.order-date { font-size:12px; color:var(--muted); }
 
-.badge { padding:6px 8px; border-radius:16px; font-size:12px; font-weight:600; }
-.badge.completed { background: rgba(99,102,241,0.1); color:#6d28d9; }
-.badge.pending { background: rgba(249,115,22,0.06); color:#fb923c; }
-
-/* small helpers */
-.small-muted { color: var(--muted); font-size:13px; }
-
-/* responsive */
 @media (max-width: 1200px) {
-  .right-col { width: 320px; flex: 0 0 320px; }
-  .cols { gap: 16px; }
+  .right-col {
+    width: 320px;
+  }
 }
 
 @media (max-width: 980px) {
-  .cols { flex-direction:column; }
-  .right-col { width: 100%; flex: 1 1 0; }
-  .stats-row { flex-direction:column; }
-  .sidebar { display:none; } /* hide for small screens (or make collapsible) */
-  .dashboard-root { height: auto; }
-  .dashboard-main { height: auto; }
-  .dashboard-content { height: auto; overflow: visible; padding: 16px; }
+  .cols {
+    flex-direction: column;
+  }
+  .right-col {
+    width: 100%;
+  }
+  .stats-row {
+    flex-direction: column;
+  }
+  .dashboard-root, .dashboard-main, .dashboard-content {
+    height: auto;
+    overflow: visible;
+  }
 }

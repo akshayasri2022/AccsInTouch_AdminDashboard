@@ -1,17 +1,14 @@
-/* AddProductForm Page Styles */
-.add-product-page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  animation: fadeIn 0.25s ease-in;
+.add-product-container {
+  padding: 20px;
+  background: #faf9fc;
 }
 
-/* Header with breadcrumb + buttons */
-.add-product-actions {
+/* Top breadcrumb + buttons */
+.add-product-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 16px;
 }
 
 .breadcrumb {
@@ -19,31 +16,63 @@
   color: #7b7b8a;
 }
 
-.action-buttons {
+.top-buttons {
   display: flex;
   gap: 10px;
 }
 
-/* Common Card */
+/* Layout: 2-column grid */
+.add-product-layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+/* Left column */
+.add-left {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Right column */
+.add-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Cards */
 .card {
   background: #fff;
   border-radius: 12px;
   padding: 18px;
-  margin-bottom: 18px;
   box-shadow: 0 6px 20px rgba(23, 23, 38, 0.04);
 }
 
+.sidebar-card {
+  position: sticky;
+  top: 80px;
+}
+
+/* Titles */
 .card-title {
-  margin: 0 0 12px 0;
   font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
   color: #222;
 }
 
-/* Form elements */
-.form-row { margin-bottom: 12px; }
-.form-row.two { display: flex; gap: 12px; }
-.form-row.three { display: flex; gap: 12px; }
+/* Labels */
+.label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: #555;
+}
 
+/* Form elements */
 .input,
 .textarea,
 .select {
@@ -56,11 +85,31 @@
 }
 
 .textarea {
-  min-height: 110px;
+  min-height: 100px;
   resize: vertical;
 }
 
-/* Media Section */
+/* Form row layouts */
+.form-row {
+  margin-bottom: 12px;
+}
+
+.form-row.two {
+  display: flex;
+  gap: 12px;
+}
+
+.form-row.three {
+  display: flex;
+  gap: 12px;
+}
+
+.form-row.four {
+  display: flex;
+  gap: 12px;
+}
+
+/* Media section */
 .media-dropzone {
   border: 2px dashed #eceaf8;
   border-radius: 10px;
@@ -70,22 +119,17 @@
   flex-direction: column;
   gap: 14px;
   align-items: center;
-}
-
-.media-dropzone.large {
-  padding: 30px;
+  justify-content: center;
 }
 
 .media-preview {
-  max-width: 280px;
+  max-width: 260px;
   border-radius: 6px;
-  display: block;
-  margin: 0 auto 10px;
 }
 
 .media-note {
-  color: #82809a;
   font-size: 13px;
+  color: #82809a;
 }
 
 /* Buttons */
@@ -98,11 +142,11 @@
   cursor: pointer;
   font-weight: 600;
   font-size: 14px;
-  transition: background 0.2s;
+  transition: 0.2s;
 }
 
 .btn:hover {
-  background: #4938d3;
+  background: #4b3ce3;
 }
 
 .btn.small {
@@ -110,10 +154,10 @@
   font-size: 13px;
 }
 
-.btn.ghost {
-  background: transparent;
-  color: #5d4afe;
-  border: 1px solid #e9e6ff;
+.btn.cancel {
+  background: #fff;
+  color: #555;
+  border: 1px solid #ddd;
 }
 
 .btn.outline {
@@ -122,22 +166,17 @@
   border: 1px dashed #e6e2ff;
 }
 
-.btn.cancel {
-  background: #fff;
-  color: #666;
-  border: 1px solid #eee;
+.btn.ghost {
+  background: transparent;
+  color: #5d4afe;
+  border: 1px solid #e9e6ff;
 }
 
-/* Shipping section */
+/* Shipping toggle */
 .shipping-toggle {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   font-size: 14px;
-}
-
-/* Animation */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  color: #444;
 }

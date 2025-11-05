@@ -1,61 +1,27 @@
 import React from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-
-/* Pages */
-import Login from "./pages/Login";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
+import Login from "./pages/Login";
 import ProductManagement from "./pages/ProductManagement";
 
-
-function RequireAuth({ children }) {
-  const isAuth = localStorage.getItem("isAuthenticated") === "true";
-  const location = useLocation();
-  if (!isAuth) {
-    
-    return <Navigate to="/login" replace state={{ from: location }} />;
-  }
-  return children;
-}
-
-export default function App() {
+function App() {
   return (
-    <Routes>
-     
-      <Route path="/login" element={<Login />} />
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Login />} />
 
+        {/* Use /dashboard as the canonical dashboard path */}
+        <Route path="/dashboard" element={<Dashboard />} />
 
-      <Route
-        path="/"
-        element={
-          <RequireAuth>
-            <Navigate to="/dashboard" replace />
-          </RequireAuth>
-        }
-      />
+        {/* Product management */}
+        <Route path="/ProductManagement" element={<ProductManagement />} />
+        <Route path="/ProductManagement/add" element={<ProductManagement />} />
 
-      
-      <Route
-        path="/dashboard"
-        element={
-          <RequireAuth>
-            <Dashboard />
-          </RequireAuth>
-        }
-      />
-
-  <Route path="/product-management" element={<ProductManagement />} />
-
-
-      
-      <Route
-        path="*"
-        element={
-          <div style={{ padding: 40, textAlign: "center" }}>
-            <h2>404 — Page not found</h2>
-            <p>The page you requested does not exist.</p>
-          </div>
-        }
-      />
-    </Routes>
+        {/* Fallback: redirect any unknown path to /dashboard (or change to / if you prefer) */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
+
+export default App;
