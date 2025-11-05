@@ -1,7 +1,7 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../../config/database");
 
-const CustomerSignUp = sequelize.define(
+const CustomerCreation = sequelize.define(
   "Customers",
   {
     id: {
@@ -62,4 +62,4 @@ const CustomerSignUp = sequelize.define(
   }
 );
 
-module.exports = CustomerSignUp;
+module.exports = CustomerCreation;
