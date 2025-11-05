@@ -1,5 +1,5 @@
 
-const CustomerSignUp = require("../model/customerModel");
+const CustomerCreation = require("../model/customerModel");
 const uploadFile = require("../../fileUpload/fileupload");
 const bcrypt = require("bcryptjs");
 const Allowed_type = require("../../fileUpload/allow_type");
@@ -12,7 +12,7 @@ const createCustomer = async (data) => {
 
   try {
     // Check if email exists
-    const existingCustomer = await CustomerSignUp.findOne({
+    const existingCustomer = await CustomerCreation.findOne({
       where: { customerEmail: data.customerEmail },
     });
 
@@ -21,14 +21,14 @@ const createCustomer = async (data) => {
     }
 
     // ✅ Fetch last inserted customer to determine next ID
-    const lastCustomer = await CustomerSignUp.findOne({
+    const lastCustomer = await CustomerCreation.findOne({
       order: [["id", "DESC"]],
     });
 
     let nextNumber = 1;
 
     if (lastCustomer && lastCustomer.customerID) {
-      const lastNum = parseInt(lastCustomer.customerID.replace("CUS", ""), 10);
+      const lastNum = parseInt(lastCustomer.customerID.replace("ID-", ""), 10);
       nextNumber = lastNum + 1;
     }
 
@@ -39,7 +39,7 @@ const createCustomer = async (data) => {
     data.customerID = newCustomerID;
 
     // Create customer
-    const newCustomer = await CustomerSignUp.create(data);
+    const newCustomer = await CustomerCreation.create(data);
     return newCustomer;
 
   } catch (error) {
@@ -52,7 +52,7 @@ const createCustomer = async (data) => {
 
 const getAllCustomers = async () => {
   try {
-    const getAllCustomer = await CustomerSignUp.findAll();
+    const getAllCustomer = await CustomerCreation.findAll();
     return getAllCustomer;
   } catch (error) {
     throw error;
@@ -61,7 +61,7 @@ const getAllCustomers = async () => {
 
 const getCustomerById = async (id) => {
   try {
-    const CustomerId = await CustomerSignUp.findByPk(id);
+    const CustomerId = await CustomerCreation.findByPk(id);
     return CustomerId;
   } catch (error) {
     throw new Error("Error retrieving Customer by id");
@@ -71,13 +71,13 @@ const getCustomerById = async (id) => {
 
 const updateCustomer = async (id, data, files) => {
   try {
-    const existingCustomer = await CustomerSignUp.findOne({ where: { id } });
+    const existingCustomer = await CustomerCreation.findOne({ where: { id } });
     if (!existingCustomer) {
       throw new Error("Customer not found");
     }
 
     // Perform update
-    const [updatedCount] = await CustomerSignUp.update(data, {
+    const [updatedCount] = await CustomerCreation.update(data, {
       where: { id },
     });
 
@@ -86,7 +86,7 @@ const updateCustomer = async (id, data, files) => {
     }
 
     // Return updated Customer
-    const updatedCustomer = await CustomerSignUp.findByPk(id);
+    const updatedCustomer = await CustomerCreation.findByPk(id);
     return updatedCustomer;
   } catch (error) {
     console.error("Update error:", error.message);
@@ -96,7 +96,7 @@ const updateCustomer = async (id, data, files) => {
 
 const deleteCustomer = async (id) => {
   try {
-    const deleteCustomer = await CustomerSignUp.destroy({
+    const deleteCustomer = await CustomerCreation.destroy({
       where: { id: id },
     });
     return deleteCustomer;
