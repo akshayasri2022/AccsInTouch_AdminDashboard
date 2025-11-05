@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { FaEye, FaEdit, FaTrash } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
 import "../styles/Product.css";
 
 /* sample data — replace with API data later */
@@ -23,6 +24,7 @@ function StatusBadge({ status }) {
 }
 
 export default function ProductTable({ search = "", tab = "all", rightSearch = "" }) {
+  const navigate = useNavigate();
   const [selected, setSelected] = useState([]);
   const [page, setPage] = useState(1);
   const perPage = 8;
@@ -89,7 +91,16 @@ export default function ProductTable({ search = "", tab = "all", rightSearch = "
 
               <td className="actions">
                 <button title="View" className="icon-btn"><FaEye /></button>
-                <button title="Edit" className="icon-btn"><FaEdit /></button>
+
+                {/* EDIT: navigate to edit page for this product */}
+                <button
+                  title="Edit"
+                  className="icon-btn"
+                  onClick={() => navigate(`/ProductManagement/edit/${p.id}`)}
+                >
+                  <FaEdit />
+                </button>
+
                 <button title="Delete" className="icon-btn danger"><FaTrash /></button>
               </td>
             </tr>
