@@ -32,7 +32,7 @@ const loginUser = async ({ email, password }) => {
     expiresIn: "1d",
   });
 
-  return { token, role: user.role , fullName: user.fullName};
+  return { token, role: user.role , email:user.email, fullName: user.fullName, };
 };
 
 
