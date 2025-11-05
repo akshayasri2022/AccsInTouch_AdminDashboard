@@ -1,0 +1,43 @@
+.topbar {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background: #fff;
+  border-bottom: 1px solid rgba(16, 24, 40, 0.04);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 18px;
+  color: #111827;
+  font-weight: 600;
+}
+
+.topbar-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.shop-select {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(16, 24, 40, 0.06);
+  background: #fff;
+  font-weight: 500;
+}
+
+.icon-btn,
+.avatar-btn {
+  background: #fff;
+  border: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.04);
+}
