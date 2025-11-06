@@ -13,6 +13,7 @@ const userRouter = require("./api/routers/userRouter");
 const authRouter = require("./api/routers/authRouter");
 const customerRouter= require("./api/routers/customerRouter");
 const orderRouter=require("./api/routers/orderRouter");
+const productRouter=require("./api/routers/productRouter")
 
 const corsOpts = {
   origin: (origin, callback) => {
@@ -35,6 +36,7 @@ app.use("/api", userRouter);
 app.use("/api", authRouter);
 app.use("/api", customerRouter);
 app.use("/api", orderRouter);
+app.use("/api",productRouter);
 app.get("/", (req, res) => {
   res.send("Welcome to the user API");
 });
