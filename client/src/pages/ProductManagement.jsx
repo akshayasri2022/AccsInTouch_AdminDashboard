@@ -15,6 +15,7 @@ export default function ProductManagement() {
   const [tab, setTab] = useState("all");
   const [globalSearch, setGlobalSearch] = useState("");
   const [rightSearch, setRightSearch] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Show add form when URL is /ProductManagement/add
   const [showAddForm, setShowAddForm] = useState(false);
@@ -26,7 +27,12 @@ export default function ProductManagement() {
   function handleOpenAdd() {
     navigate("/ProductManagement/add");
   }
-
+  function handleProductAdded(newProduct) {
+  setRefreshKey(prev => prev + 1);
+  setTimeout(() => {
+    navigate("/ProductManagement");
+  }, 1500);
+}
   function handleCloseAdd() {
     navigate("/ProductManagement");
   }
@@ -142,11 +148,14 @@ export default function ProductManagement() {
             <div className="product-main-area">
               {showAddForm ? (
                 <div className="add-product-inline">
-                  <AddProductForm onCancel={handleCloseAdd} />
+                  <AddProductForm onCancel={handleCloseAdd} 
+                  onProductAdded={handleProductAdded}
+                    />
                 </div>
               ) : (
                 <div className="product-table-container">
                   <ProductTable
+                    key={refreshKey}
                     search={globalSearch}
                     tab={tab}
                     rightSearch={rightSearch}
