@@ -41,11 +41,10 @@ export default function ProductManagement() {
 
         <div className="dashboard-content">
           <div className="product-page">
-            
             {/* Header + actions */}
             {!showAddForm && (
               <div className="product-header-wrap">
-                <div className="product-header-right">
+                <div className="product-header-right ">
 
                   {/* Search bar with icon */}
                   <div className="search-wrapper">
