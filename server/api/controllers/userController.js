@@ -53,16 +53,6 @@ const getuserById = async (req, res) => {
   }
 };
 
-// const getUserByAdminId = async (req, res) => {
-//   const { id } = req.params; // match route param
-//   try {
-//     const users = await userSignUpService.getUserByAdminId(id);
-//     res.status(200).json(users);
-//   } catch (error) {
-//     console.error("Controller error:", error.message);
-//     res.status(500).json({ error: error.message });
-//   }
-// };
 
 const updateuser = async (req, res) => {
   try {
