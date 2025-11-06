@@ -19,9 +19,6 @@ const uploadFiles = async (files) => {
 };
 
 const createProduct = async (data, files) => {
-  if (!data.email || !data.password) {
-    throw new Error("Email and password are required");
-  }
   try {
     const lastProduct = await ProductCreation.findOne({
       Product: [["id", "DESC"]],

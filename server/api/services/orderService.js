@@ -1,9 +1,8 @@
-
+const CustomerCreation = require("../model/customerModel");
 const OrderCreation = require("../model/orderCreation");
-
+const ProductCreation = require("../model/productCreation");
 
 const createOrder = async (data) => {
-
   try {
     const lastOrder = await OrderCreation.findOne({
       order: [["id", "DESC"]],
@@ -21,18 +20,29 @@ const createOrder = async (data) => {
     // Create Order
     const newOrder = await OrderCreation.create(data);
     return newOrder;
-
   } catch (error) {
     throw error;
   }
 };
 
-
 // module.exports = { createOrder };
 
 const getAllOrder = async () => {
   try {
-    const getAllOrder = await OrderCreation.findAll();
+    const getAllOrder = await OrderCreation.findAll({
+      include: [
+        {
+          model: CustomerCreation,
+          as: "orderCustomer", // Must match alias in belongsTo
+          // attributes: ["id", "customerName", "customerEmail", "phoneNumber", "customerID"], // choose fields you want
+        },
+         {
+          model: ProductCreation,
+          as: "OrderedProduct",   // must match belongsTo alias
+          // attributes: ["id", "productName", "price", "image_url"], // <-- ADD FIELDS HERE
+        }
+      ],
+    });
     return getAllOrder;
   } catch (error) {
     throw error;
@@ -47,7 +57,6 @@ const getOrderById = async (id) => {
     throw new Error("Error retrieving Order by id");
   }
 };
-
 
 const updateOrder = async (id, data, files) => {
   try {
