@@ -8,10 +8,10 @@ const ProductCreation = sequelize.define("Products", {
     autoIncrement: true,
   },
 
-  productID: {
-    type: DataTypes.STRING,
-    allowNull: false,
-  },
+  // productID: {
+  //   type: DataTypes.STRING,
+  //   allowNull: false,
+  // },
   productName: {
     type: DataTypes.STRING,
     allowNull: true,
