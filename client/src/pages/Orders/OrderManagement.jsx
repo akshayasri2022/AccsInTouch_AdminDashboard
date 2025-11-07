@@ -107,7 +107,7 @@ const OrderManagement = () => {
       id: 'SO1025',
       product: 'Velvet Scrunchie',
       variants: 3,
-      date: '1 Jan 2025',
+      date: '10 Dec 2022',
       customer: 'Tom Hardy',
       total: 234.00,
       payment: 'Net Banking',
