@@ -1,6 +1,7 @@
+// src/components/ProductTable.jsx
 import React, { useMemo, useState } from "react";
-import { FaEye, FaEdit, FaTrash } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import { FaEye, FaEdit, FaTrash } from "react-icons/fa";
 import "../styles/Product.css";
 
 /* sample data — replace with API data later */
@@ -52,6 +53,24 @@ export default function ProductTable({ search = "", tab = "all", rightSearch = "
   const toggle = (id) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
   const toggleAll = (e) => e.target.checked ? setSelected(filtered.map(f => f.id)) : setSelected([]);
 
+  // navigate to edit page (kebab-case route)
+  const handleEdit = (id) => {
+    navigate(`/productManagement/edit/${id}`);
+  };
+
+  const handleView = (id) => {
+    // if you have a view route, navigate to it. For now we'll console and you can implement later.
+    // navigate(`/product-management/view/${id}`);
+    console.log("View product", id);
+  };
+
+  const handleDelete = (id) => {
+    if (window.confirm("Are you sure you want to delete this product?")) {
+      // Replace with API call or state update. For now show alert.
+      alert("Deleted (mock) product " + id);
+    }
+  };
+
   return (
     <div className="product-table-panel panel">
       <table className="product-table">
@@ -89,19 +108,10 @@ export default function ProductTable({ search = "", tab = "all", rightSearch = "
               <td><StatusBadge status={p.status} /></td>
               <td className="mono">{p.added}</td>
 
-              <td className="actions">
-                <button title="View" className="icon-btn"><FaEye /></button>
-
-                {/* EDIT: navigate to edit page for this product */}
-                <button
-                  title="Edit"
-                  className="icon-btn"
-                  onClick={() => navigate(`/ProductManagement/edit/${p.id}`)}
-                >
-                  <FaEdit />
-                </button>
-
-                <button title="Delete" className="icon-btn danger"><FaTrash /></button>
+              <td className="actions" style={{ justifyContent: "flex-end" }}>
+                <button type="button" title="View" className="icon-btn" onClick={() => handleView(p.id)}><FaEye /></button>
+                <button type="button" title="Edit" className="icon-btn" onClick={() => handleEdit(p.id)}><FaEdit /></button>
+                <button type="button" title="Delete" className="icon-btn danger" onClick={() => handleDelete(p.id)}><FaTrash /></button>
               </td>
             </tr>
           ))}
