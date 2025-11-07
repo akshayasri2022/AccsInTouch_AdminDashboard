@@ -16,6 +16,9 @@
   height: 100vh;
   position: sticky;
   top: 0;
+
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
 .logo {
@@ -60,21 +63,53 @@
   cursor: pointer;
   font-size: 14px;
   text-decoration: none;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 .nav-item svg {
   opacity: 0.95;
+  flex-shrink: 0;
 }
 
+/* Normal and active both have the same text color (no erase effect) */
+.nav-item,
+.nav-item:visited,
+.nav-item:focus,
+.nav-item:active {
+  color: #fff !important;
+  text-decoration: none !important;
+  outline: none;
+  box-shadow: none;
+}
+
+/* Active menu item background */
 .nav-item.active {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
+  font-weight: 600;
 }
 
+/* Hover only changes background, not color */
 .nav-item:hover {
   background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 
+/* Remove text disappear flicker on click */
+.nav-item:focus-visible {
+  outline: none;
+}
+
+.nav-item:active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+/* Prevent any color changes when clicked */
+.nav-item * {
+  color: inherit;
+}
+
+/* Responsive */
 @media (max-width: 980px) {
   .sidebar {
     display: none;

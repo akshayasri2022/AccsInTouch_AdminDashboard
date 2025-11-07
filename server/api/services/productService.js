@@ -21,30 +21,31 @@ const uploadFiles = async (files) => {
 const createProduct = async (data, files) => {
   try {
     const lastProduct = await ProductCreation.findOne({
-      Product: [["id", "DESC"]],
+      order: [["id", "DESC"]],
     });
-    // If file is uploaded
-if (files && files.image_url && files.image_url.length > 0) { // **CHANGED `profile` to `image_url`**
-  const uploadData = await uploadFiles([files.image_url[0]]);
-  data.image_url = uploadData.image_url; // This assigns the returned URL
-}
 
-  let nextNumber = 1;
-
-    if (lastProduct && lastProduct.productID) {
-      const lastNum = parseInt(lastProduct.productID.replace("ORD-", ""), 10);
-      nextNumber = lastNum + 1;
+    if (files && files.image_url && files.image_url.length > 0) {
+      const uploadData = await uploadFiles([files.image_url[0]]);
+      data.image_url = uploadData.image_url;
     }
-    const newProductID = `ORD-${String(nextNumber).padStart(3, "0")}`;
-    data.productID = newProductID;
 
+    let nextNumber = 1;
+
+    if (lastProduct && lastProduct.productSKU) {
+      const extracted = lastProduct.productSKU.replace("SKU-", "");
+      const lastNum = Number(extracted);
+      if (!isNaN(lastNum)) nextNumber = lastNum + 1;
+    }
+
+    data.productSKU = `SKU-${String(nextNumber).padStart(3, "0")}`;
 
     const newProduct = await ProductCreation.create(data);
-    return newProduct;
+    return newProduct;  
   } catch (error) {
     throw error;
   }
 };
+
 
 // module.exports = { createProduct };
 
@@ -59,8 +60,8 @@ const getAllProducts = async () => {
 
 const getProductById = async (id) => {
   try {
-    const ProductId = await ProductCreation.findByPk(id);
-    return ProductId;
+    const ProductById = await ProductCreation.findByPk(id);
+    return ProductById;
   } catch (error) {
     throw new Error("Error retrieving Product by id");
   }

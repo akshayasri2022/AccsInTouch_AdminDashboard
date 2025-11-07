@@ -3,7 +3,6 @@ import { NavLink } from "react-router-dom";
 import { FaChartPie, FaBoxOpen, FaClipboardList, FaUsers, FaFileAlt } from "react-icons/fa";
 import "../styles/Sidebar.css";
 
-
 export default function Sidebar() {
   return (
     <aside className="sidebar">
@@ -30,14 +29,14 @@ export default function Sidebar() {
         </NavLink>
 
         <NavLink
-          to="/order-management"
+          to="/OrderManagement"
           className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
         >
           <FaClipboardList /> <span>Order Management</span>
         </NavLink>
 
         <NavLink
-          to="/customer-management"
+          to="/CustomerManagement"
           className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
         >
           <FaUsers /> <span>Customer Management</span>
