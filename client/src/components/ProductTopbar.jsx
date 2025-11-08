@@ -1,7 +1,6 @@
 import React from "react";
 import "../styles/ProductTopbar.css";
 import { FiBell } from "react-icons/fi";
-import { IoMdArrowDropdown } from "react-icons/io";
 
 export default function ProductTopbar() {
   return (
@@ -11,18 +10,15 @@ export default function ProductTopbar() {
       </div>
 
       <div className="topbar-right">
-        {/* Store selector */}
-        <div className="shop-dropdown">
-          <span className="shop-name">Nik Shop</span>
-          <IoMdArrowDropdown className="dropdown-icon" />
-        </div>
+        {/* Replaced dropdown with plain text */}
+        <span className="acc-text">Acc-in-touch</span>
 
         {/* Notification icon */}
         <button className="icon-btn notification-btn">
           <FiBell size={18} />
         </button>
 
-        {/* Profile */}
+        {/* Profile avatar */}
         <div className="profile-avatar">
           <img
             src="https://i.pravatar.cc/32?img=3"

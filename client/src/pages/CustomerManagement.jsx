@@ -1,9 +1,10 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
+import axios from "axios";
 import Sidebar from "../components/Sidebar";
 import CustomerTopbar from "../components/CustomerTopbar";
 import "../styles/CustomerManagement.css";
 
-/* Mock customers for demo */
+/* Mock customers for fallback */
 const MOCK_CUSTOMERS = Array.from({ length: 20 }).map((_, i) => {
   const names = [
     "Linda Blair","John Bushmill","Laura Prichet",
@@ -26,15 +27,112 @@ const MOCK_CUSTOMERS = Array.from({ length: 20 }).map((_, i) => {
   };
 });
 
-/* ---------------- Profile Modal ---------------- */
-function CustomerModal({ customer, onClose }) {
+const API_BASE = "http://localhost:25186/api/customer";
+
+/* ---------------- Profile Modal (GET one, PUT, DELETE via axios) ---------------- */
+function CustomerModal({ id, onClose, onUpdated, onDeleted }) {
+  const [customer, setCustomer] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [editMode, setEditMode] = useState(false);
+  const [form, setForm] = useState({});
+
   useEffect(() => {
     function onKey(e) { if (e.key === "Escape") onClose(); }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  useEffect(() => {
+    let mounted = true;
+    async function fetchOne() {
+      setLoading(true);
+      try {
+        const res = await axios.get(`${API_BASE}/${id}`);
+        if (!mounted) return;
+        const data = res.data;
+        setCustomer(data);
+        setForm({
+          name: data.name || "",
+          email: data.email || "",
+          phone: data.phone || "",
+          address: data.address || "",
+        });
+      } catch (err) {
+        console.error("GET /customer/:id failed:", err);
+        const fallback = MOCK_CUSTOMERS.find((c) => String(c.id) === String(id));
+        if (fallback && mounted) {
+          setCustomer(fallback);
+          setForm({
+            name: fallback.name || "",
+            email: fallback.email || "",
+            phone: fallback.phone || "",
+            address: fallback.address || "",
+          });
+        } else {
+          alert("Failed to load customer details.");
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    if (id != null) fetchOne();
+    return () => { mounted = false; };
+  }, [id]);
+
+  if (!id) return null;
+  if (loading) return (
+    <div className="cm-modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="cm-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="cm-body">Loading...</div>
+      </div>
+    </div>
+  );
   if (!customer) return null;
+
+  async function handleDelete() {
+    if (!window.confirm("Delete this customer?")) return;
+    try {
+      await axios.delete(`${API_BASE}/${customer.id}`);
+      onDeleted(customer.id);
+      onClose();
+    } catch (err) {
+      console.error("DELETE failed:", err);
+      // fallback: remove locally
+      onDeleted(customer.id);
+      onClose();
+      alert("API delete failed — removed locally.");
+    }
+  }
+
+  async function handleUpdate(ev) {
+    ev.preventDefault();
+    if (!form.name.trim() || !form.email.includes("@")) {
+      alert("Please provide a valid name and email.");
+      return;
+    }
+
+    try {
+      const res = await axios.put(`${API_BASE}/${customer.id}`, {
+        ...customer,
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        address: form.address,
+      });
+      const updated = res.data;
+      setCustomer(updated);
+      setEditMode(false);
+      onUpdated(updated);
+    } catch (err) {
+      console.error("PUT failed:", err);
+      // fallback: update locally
+      const fallback = { ...customer, name: form.name, email: form.email, phone: form.phone, address: form.address };
+      setCustomer(fallback);
+      onUpdated(fallback);
+      setEditMode(false);
+      alert("Could not update via API — updated locally.");
+    }
+  }
 
   return (
     <div className="cm-modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
@@ -49,67 +147,99 @@ function CustomerModal({ customer, onClose }) {
         </div>
 
         <div className="cm-body">
-          <h3 className="cm-name">{customer.name}</h3>
-          <div className={`cm-status ${customer.status.toLowerCase()}`}>{customer.status}</div>
+          {!editMode ? (
+            <>
+              <h3 className="cm-name">{customer.name}</h3>
+              <div className={`cm-status ${customer.status?.toLowerCase() || "active"}`}>{customer.status || "Active"}</div>
 
-          <hr className="cm-sep" />
+              <hr className="cm-sep" />
 
-          <ul className="cm-info-list">
-            <li>
-              <span className="cm-icon">📇</span>
-              <div>
-                <div className="cm-info-title">Customer ID</div>
-                <div className="cm-info-sub">ID-{String(customer.id).padStart(6, "0")}</div>
+              <ul className="cm-info-list">
+                <li>
+                  <span className="cm-icon">📇</span>
+                  <div>
+                    <div className="cm-info-title">Customer ID</div>
+                    <div className="cm-info-sub">ID-{String(customer.id).padStart(6, "0")}</div>
+                  </div>
+                </li>
+
+                <li>
+                  <span className="cm-icon">✉️</span>
+                  <div>
+                    <div className="cm-info-title">E-mail</div>
+                    <div className="cm-info-sub">{customer.email}</div>
+                  </div>
+                </li>
+
+                <li>
+                  <span className="cm-icon">📍</span>
+                  <div>
+                    <div className="cm-info-title">Address</div>
+                    <div className="cm-info-sub">{customer.address}</div>
+                  </div>
+                </li>
+
+                <li>
+                  <span className="cm-icon">📞</span>
+                  <div>
+                    <div className="cm-info-title">Phone Number</div>
+                    <div className="cm-info-sub">{customer.phone}</div>
+                  </div>
+                </li>
+
+                <li>
+                  <span className="cm-icon">🧾</span>
+                  <div>
+                    <div className="cm-info-title">Last Transaction</div>
+                    <div className="cm-info-sub">{customer.lastTransaction}</div>
+                  </div>
+                </li>
+
+                <li>
+                  <span className="cm-icon">⏱️</span>
+                  <div>
+                    <div className="cm-info-title">Last Online</div>
+                    <div className="cm-info-sub">{customer.lastOnline}</div>
+                  </div>
+                </li>
+              </ul>
+
+              <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 14 }}>
+                <button className="cm-btn ghost cancel" onClick={() => setEditMode(true)}>Edit</button>
+                <button className="cm-btn add-action" onClick={handleDelete}>Delete</button>
               </div>
-            </li>
+            </>
+          ) : (
+            <form onSubmit={handleUpdate}>
+              <h3 className="cm-name">Edit Customer</h3>
 
-            <li>
-              <span className="cm-icon">✉️</span>
-              <div>
-                <div className="cm-info-title">E-mail</div>
-                <div className="cm-info-sub">{customer.email}</div>
-              </div>
-            </li>
+              <div style={{ textAlign: "left", marginTop: 10 }}>
+                <label className="label">Name</label>
+                <input className="form-input" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} />
 
-            <li>
-              <span className="cm-icon">📍</span>
-              <div>
-                <div className="cm-info-title">Address</div>
-                <div className="cm-info-sub">{customer.address}</div>
-              </div>
-            </li>
+                <label className="label" style={{ marginTop: 8 }}>Email</label>
+                <input className="form-input" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} />
 
-            <li>
-              <span className="cm-icon">📞</span>
-              <div>
-                <div className="cm-info-title">Phone Number</div>
-                <div className="cm-info-sub">{customer.phone}</div>
-              </div>
-            </li>
+                <label className="label" style={{ marginTop: 8 }}>Phone</label>
+                <input className="form-input" value={form.phone} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} />
 
-            <li>
-              <span className="cm-icon">🧾</span>
-              <div>
-                <div className="cm-info-title">Last Transaction</div>
-                <div className="cm-info-sub">{customer.lastTransaction}</div>
-              </div>
-            </li>
+                <label className="label" style={{ marginTop: 8 }}>Address</label>
+                <input className="form-input" value={form.address} onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))} />
 
-            <li>
-              <span className="cm-icon">⏱️</span>
-              <div>
-                <div className="cm-info-title">Last Online</div>
-                <div className="cm-info-sub">{customer.lastOnline}</div>
+                <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+                  <button type="button" className="cm-btn ghost cancel" onClick={() => setEditMode(false)}>Cancel</button>
+                  <button type="submit" className="cm-btn add-action">Save</button>
+                </div>
               </div>
-            </li>
-          </ul>
+            </form>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-/* ---------------- Add Customer Modal ---------------- */
+/* ---------------- Add Customer Modal (axios.post) ---------------- */
 function AddCustomerModal({ onClose, onAdd }) {
   useEffect(() => {
     function onKey(e) { if (e.key === "Escape") onClose(); }
@@ -128,6 +258,7 @@ function AddCustomerModal({ onClose, onAdd }) {
   const [stateVal, setStateVal] = useState("");
   const [sameBilling, setSameBilling] = useState(true);
   const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
 
   function validate() {
     const e = {};
@@ -136,17 +267,16 @@ function AddCustomerModal({ onClose, onAdd }) {
     return e;
   }
 
-  function submit(ev) {
+  async function submit(ev) {
     ev.preventDefault();
     const eobj = validate();
     setErrors(eobj);
     if (Object.keys(eobj).length) return;
 
-    const id = Math.floor(Math.random() * 100000) + 2000;
-    const newCustomer = {
-      id,
+    setSubmitting(true);
+    const payload = {
       name: name.trim(),
-      avatar: `https://i.pravatar.cc/160?img=${(id % 70) + 1}`,
+      avatar: `https://i.pravatar.cc/160?img=${Math.floor(Math.random() * 70) + 1}`,
       orders: 0,
       balance: "$0",
       status: "Active",
@@ -156,8 +286,22 @@ function AddCustomerModal({ onClose, onAdd }) {
       lastTransaction: "-",
       lastOnline: "Now",
     };
-    onAdd(newCustomer);
-    onClose();
+
+    try {
+      const res = await axios.post(API_BASE, payload);
+      const created = res.data;
+      onAdd(created);
+      onClose();
+    } catch (err) {
+      console.error("POST failed:", err);
+      const id = Math.floor(Math.random() * 100000) + 2000;
+      const fallback = { id, ...payload };
+      onAdd(fallback);
+      onClose();
+      alert("Could not reach API — customer added locally.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -228,7 +372,7 @@ function AddCustomerModal({ onClose, onAdd }) {
 
           <div className="modal-actions">
             <button type="button" className="cm-btn ghost cancel" onClick={onClose}>Cancel</button>
-            <button type="submit" className="cm-btn add-action">Add</button>
+            <button type="submit" className="cm-btn add-action" disabled={submitting}>{submitting ? "Adding..." : "Add"}</button>
           </div>
         </form>
       </div>
@@ -236,18 +380,32 @@ function AddCustomerModal({ onClose, onAdd }) {
   );
 }
 
-/* ---------------- Main Page ---------------- */
+/* ---------------- Main Page (card grid) ---------------- */
 export default function CustomerManagement() {
-  const [customers, setCustomers] = useState(MOCK_CUSTOMERS);
+  const [customers, setCustomers] = useState([]); // loaded from API
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState("All");
   const [page, setPage] = useState(1);
-  const perPage = 12;
+  const perPage = 8; // 4 per row x 2 rows
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [profileOpen, setProfileOpen] = useState(null); // customer object or null
+  const [profileOpenId, setProfileOpenId] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
+  const gridRef = useRef(null);
 
-  // Filtering + search
+  async function fetchCustomers() {
+    try {
+      const res = await axios.get(API_BASE);
+      setCustomers(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("GET /customer failed:", err);
+      setCustomers(MOCK_CUSTOMERS);
+    }
+  }
+
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return customers.filter((c) => {
@@ -256,11 +414,16 @@ export default function CustomerManagement() {
       if (!q) return true;
       return (
         String(c.id).includes(q) ||
-        c.name.toLowerCase().includes(q) ||
+        (c.name && c.name.toLowerCase().includes(q)) ||
         (c.email && c.email.toLowerCase().includes(q))
       );
     });
   }, [customers, tab, query]);
+
+  useEffect(() => {
+    const pages = Math.max(1, Math.ceil(filtered.length / perPage));
+    if (page > pages) setPage(1);
+  }, [filtered.length, perPage, page]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / perPage));
   const start = (page - 1) * perPage;
@@ -269,7 +432,8 @@ export default function CustomerManagement() {
   function goPage(n) {
     const p = Math.max(1, Math.min(n, pages));
     setPage(p);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (gridRef.current) gridRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    else window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function toggleSelect(id) {
@@ -281,6 +445,20 @@ export default function CustomerManagement() {
     });
   }
 
+  function handleAdd(customer) {
+    setCustomers(prev => [customer, ...prev]);
+    setPage(1);
+    fetchCustomers(); // sync
+  }
+
+  function handleUpdatedCustomer(updated) {
+    setCustomers(prev => prev.map(c => String(c.id) === String(updated.id) ? updated : c));
+  }
+
+  function handleDeletedCustomer(id) {
+    setCustomers(prev => prev.filter(c => String(c.id) !== String(id)));
+  }
+
   function handleExportVisible() {
     const rows = [
       ["ID","Name","Orders","Balance","Status"],
@@ -290,11 +468,6 @@ export default function CustomerManagement() {
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = "customers.csv"; a.click(); URL.revokeObjectURL(url);
-  }
-
-  function handleAdd(customer) {
-    setCustomers(prev => [customer, ...prev]);
-    setPage(1);
   }
 
   return (
@@ -311,47 +484,18 @@ export default function CustomerManagement() {
                 <div className="cm-search-wrap">
                   <input
                     className="cm-search-input"
-                    placeholder="Search order..."
+                    placeholder="Search customer..."
                     value={query}
                     onChange={(e) => { setQuery(e.target.value); setPage(1); }}
                   />
                 </div>
 
-                {/* RIGHT CONTROLS: Export | Add (big) above Filters (small) */}
                 <div className="cm-right-controls">
-                  {/* Export button on left */}
-                  <button
-                    className="cm-btn cm-export-btn"
-                    onClick={handleExportVisible}
-                    aria-label="Export visible customers"
-                  >
-                    {/* small download icon + label */}
-                    <span style={{ marginRight: 8, display: "inline-flex", alignItems: "center" }}>⬇️</span>
-                    Export
-                  </button>
+                  <button className="cm-btn cm-export-btn" onClick={handleExportVisible}>⬇️ Export</button>
 
-                  {/* Column: Add on top, Filters below */}
                   <div className="cm-add-column">
-                    {/* Big Add button with plus icon */}
-                    <button
-                      className="cm-btn cm-add-btn"
-                      onClick={() => setAddOpen(true)}
-                      aria-label="Add Customer"
-                    >
-                      <span style={{ marginRight: 10, fontSize: 18, lineHeight: 0 }}>＋</span>
-                      Add Customer
-                    </button>
-
-                    {/* Filters pill under the Add button */}
-                    <button
-                      className="cm-btn cm-filter-btn"
-                      onClick={() => alert("Filters")}
-                      aria-label="Open Filters"
-                    >
-                      {/* filter icon */}
-                      <span style={{ marginRight: 8, display: "inline-flex", alignItems: "center" }}>⚙️</span>
-                      Filters
-                    </button>
+                    <button className="cm-btn cm-add-btn" onClick={() => setAddOpen(true)}>＋ Add Customer</button>
+                    <button className="cm-btn cm-filter-btn" onClick={() => alert("Filters")}>⚙️ Filters</button>
                   </div>
                 </div>
               </div>
@@ -365,18 +509,18 @@ export default function CustomerManagement() {
               </div>
             </div>
 
-            {/* Grid: click card to open profile modal */}
-            <div className="cm-grid">
+            {/* CARD GRID (keeps old visual) */}
+            <div ref={gridRef} className="cm-grid" style={{ marginTop: 12 }}>
               {paged.map(c => {
                 const isSelected = selectedIds.has(c.id);
                 return (
                   <div
                     key={c.id}
                     className={`cm-card ${isSelected ? "selected" : ""}`}
-                    onClick={() => setProfileOpen(c)}
+                    onClick={() => setProfileOpenId(c.id)}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === "Enter") setProfileOpen(c); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") setProfileOpenId(c.id); }}
                   >
                     <div className="cm-card-top">
                       <label className="card-checkbox" onClick={(e) => e.stopPropagation()}>
@@ -392,7 +536,7 @@ export default function CustomerManagement() {
 
                     <div className="cm-card-body">
                       <div className="cm-card-name">{c.name}</div>
-                      <div className={`cm-status-badge ${c.status.toLowerCase()}`}>{c.status}</div>
+                      <div className={`cm-status-badge ${c.status?.toLowerCase()}`}>{c.status}</div>
 
                       <div className="card-stats">
                         <div>
@@ -411,18 +555,27 @@ export default function CustomerManagement() {
             </div>
 
             {/* Footer / pagination */}
-            <div className="customers-footer">
-              <div className="pager-info">
+            <div className="cm-footer">
+              <div className="summary">
                 Showing {filtered.length === 0 ? 0 : start + 1}–{Math.min(start + perPage, filtered.length)} of {filtered.length}
               </div>
 
-              <div className="pager">
-                <button className="page" onClick={() => goPage(page - 1)} disabled={page === 1}>«</button>
+              <div className="cm-pager" role="navigation" aria-label="Pagination">
+                <button className="cm-page" onClick={() => goPage(page - 1)} disabled={page === 1}>«</button>
                 {Array.from({ length: pages }).map((_, i) => {
                   const p = i + 1;
-                  return <button key={p} className={`page ${page === p ? "active" : ""}`} onClick={() => goPage(p)}>{p}</button>;
+                  return (
+                    <button
+                      key={p}
+                      className={`cm-page ${page === p ? "active" : ""}`}
+                      onClick={() => goPage(p)}
+                      aria-current={page === p ? "page" : undefined}
+                    >
+                      {p}
+                    </button>
+                  );
                 })}
-                <button className="page" onClick={() => goPage(page + 1)} disabled={page === pages}>»</button>
+                <button className="cm-page" onClick={() => goPage(page + 1)} disabled={page === pages}>»</button>
               </div>
             </div>
 
@@ -430,8 +583,15 @@ export default function CustomerManagement() {
         </div>
       </div>
 
-      {/* Modals: both can be open independently (but UI opens one at a time) */}
-      {profileOpen && <CustomerModal customer={profileOpen} onClose={() => setProfileOpen(null)} />}
+      {/* Modals */}
+      {profileOpenId && (
+        <CustomerModal
+          id={profileOpenId}
+          onClose={() => setProfileOpenId(null)}
+          onUpdated={handleUpdatedCustomer}
+          onDeleted={handleDeletedCustomer}
+        />
+      )}
       {addOpen && <AddCustomerModal onClose={() => setAddOpen(false)} onAdd={handleAdd} />}
     </div>
   );

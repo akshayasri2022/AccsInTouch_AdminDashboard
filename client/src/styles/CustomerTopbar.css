@@ -13,10 +13,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 28px;
+  padding: 15px 18px;
   box-sizing: border-box;
   font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
-  background: #fff;                    /* white background like product topbar */
+  background: #fff;
   border-bottom: 1px solid rgba(16,24,40,0.06);
   position: sticky;
   top: 0;
@@ -33,7 +33,7 @@
 .customer-topbar .page-title,
 .customer-topbar .topbar-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: #0b1220;
   letter-spacing: -0.2px;
@@ -43,32 +43,34 @@
 .customer-topbar .topbar-right {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 30px;
 }
 
-/* Shop selector — matches ProductTopbar look */
+/* Shop selector — now plain non-interactive text */
 .customer-topbar .shop-selector {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  height: 40px;
-  border-radius: 10px;
-  /* light warm background similar to the product topbar */
-  background: linear-gradient(180deg,#fef6ea,#fef6ea);
-  border: 1px solid rgba(107,70,182,0.08);
-  box-shadow: var(--shadow-sm);
+  gap: 10px;
+  padding: 0;                 /* text only */
+  height: auto;
+  border-radius: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
   font-weight: 600;
   color: var(--accent);
-  cursor: pointer;
-  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+  cursor: default;           /* not clickable */
   white-space: nowrap;
+  transition: none;
+  font-size: 14px;
+  line-height: 1;
 }
+
+/* Remove hover transform — it's just text so no hover effect */
 .customer-topbar .shop-selector:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 30px rgba(107,70,182,0.06);
+  transform: none;
+  box-shadow: none;
 }
-.customer-topbar .shop-selector .arrow { font-size: 12px; opacity: 0.9; }
 
 /* Notification button */
 .customer-topbar .notif-btn {
@@ -106,7 +108,7 @@
 @media (max-width: 820px) {
   .customer-topbar { padding: 12px 16px; }
   .customer-topbar .page-title { font-size: 16px; }
-  .customer-topbar .shop-selector { padding: 7px 10px; height: 36px; }
+  .customer-topbar .shop-selector { font-size: 13px; }
   .customer-topbar .notif-btn, .customer-topbar .user-avatar { width: 36px; height: 36px; }
 }
 
