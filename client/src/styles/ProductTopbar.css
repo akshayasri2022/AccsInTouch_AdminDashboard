@@ -35,26 +35,13 @@
   gap: 16px;
 }
 
-/* Shop dropdown */
-.shop-dropdown {
-  background: #fef6ea;
-  border-radius: 8px;
-  padding: 8px 10px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  font-size: 14px;
+/* ✅ Replaced shop dropdown with plain text */
+.acc-text {
+  font-size: 18px;
   font-weight: 600;
   color: #111827;
-  transition: background 0.2s ease;
-}
-.shop-dropdown:hover {
-  background: #fdeed7;
-}
-.dropdown-icon {
-  color: #555;
-  font-size: 14px;
+  white-space: nowrap;
+  cursor: default;
 }
 
 /* Notification button */
@@ -98,7 +85,7 @@
   .topbar-title {
     font-size: 16px;
   }
-  .shop-dropdown {
-    padding: 6px 8px;
+  .acc-text {
+    font-size: 13px;
   }
 }
