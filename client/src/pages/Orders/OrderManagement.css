@@ -11,7 +11,41 @@
   max-width: 77vw;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 }
+/* Add this to your OrderManagement.css file */
 
+/* Add Customer Button in Modal */
+.form-group .btn-primary {
+  width: 100%;
+  padding: 12px 24px;
+  background: #5856D6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  margin-top: 8px;
+}
+
+.form-group .btn-primary:hover {
+  background: #4745b8;
+  box-shadow: 0 4px 12px rgba(88, 86, 214, 0.4);
+}
+
+.form-group .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Success message styling */
+.form-group p {
+  margin: 0;
+  padding: 8px 12px;
+  background: #e7f7ef;
+  border-radius: 6px;
+  border-left: 3px solid #27ae60;
+}
 /* Header */
 .order-header {
   display: flex;
