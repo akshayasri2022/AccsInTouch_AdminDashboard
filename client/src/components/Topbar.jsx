@@ -2,7 +2,6 @@ import React from "react";
 import { FaBell, FaUserCircle } from "react-icons/fa";
 import "../styles/Topbar.css";
 
-
 export default function Topbar() {
   return (
     <header className="topbar">
@@ -11,10 +10,13 @@ export default function Topbar() {
       </div>
 
       <div className="topbar-right">
-        <select className="shop-select">
-          <option>Nik Shop</option>
-        </select>
-        <button className="icon-btn" title="Notifications"><FaBell /></button>
+        {/* ✅ Replaced dropdown with plain text */}
+        <span className="acc-text">Acc-in-touch</span>
+
+        <button className="icon-btn" title="Notifications">
+          <FaBell />
+        </button>
+
         <button className="avatar-btn" title="User">
           <FaUserCircle />
         </button>

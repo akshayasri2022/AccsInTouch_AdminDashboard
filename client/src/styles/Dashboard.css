@@ -1,10 +1,23 @@
+/* =========================
+   Theme variables
+   ========================= */
 :root {
   --page-bg: #f6f7fb;
   --card-bg: #fff;
   --muted: #9aa3b2;
+  --accent: #6b46b6;
+  --brand-blue: #2563eb;
   --panel-shadow: 0 8px 24px rgba(16, 24, 40, 0.06);
+  --shadow-sm: 0 6px 18px rgba(11,15,25,0.06);
+  --topbar-height: 60px; /* used to calculate dashboard-content height */
 }
 
+/* =========================
+   Global layout & body
+   ========================= */
+* { box-sizing: border-box; }
+
+/* IMPORTANT: Hide page-level scrollbars so only inner containers scroll */
 html, body, #root {
   height: 100%;
   width: 100%;
@@ -12,41 +25,146 @@ html, body, #root {
   padding: 0;
   background: var(--page-bg);
   font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow: hidden; /* <--- disables outer scrollbars */
 }
 
+/* =========================
+   Dashboard container
+   ========================= */
 .dashboard-root {
   display: flex;
   width: 100%;
   min-height: 100vh;
-  height: 100vh;
   background: var(--page-bg);
+  /* do not allow the root to scroll */
   overflow: hidden;
 }
 
+/* Sidebar safety: ensure it doesn't force page scroll */
+.sidebar, .app-sidebar, .left-side {
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* main column */
 .dashboard-main {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  height: 100vh;
-  overflow: hidden;
+  overflow: hidden; /* parent should not scroll */
 }
 
+/*
+  THE ONLY MAIN vertical scroller: dashboard-content
+  Keep a fixed viewport-height-based area so inner scrolling works.
+*/
 .dashboard-content {
-  padding: 20px;
+  padding: 16px 20px;
   box-sizing: border-box;
   width: 100%;
-  height: calc(100vh - 64px);
-  overflow-y: auto;
+  height: calc(100vh - var(--topbar-height)); /* fixed available area for inner scrolling */
+  overflow-y: auto;    /* <= main inner vertical scroll */
+  overflow-x: hidden;  /* hide any horizontal overflow */
+  -webkit-overflow-scrolling: touch;
 }
 
+/* Generic containers */
 .dashboard-grid, .container, .content-wrapper {
   max-width: none;
   width: 100%;
   margin: 0;
-  box-sizing: border-box;
 }
 
+/* =========================
+   Topbar (Customer Topbar) — sticky
+   ========================= */
+.customer-topbar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;        /* reduced height */
+  height: var(--topbar-height); /* ensure consistent topbar height */
+  box-sizing: border-box;
+  background: #fff;
+  border-bottom: 1px solid rgba(16,24,40,0.06);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  overflow: hidden;
+}
+
+/* left side */
+.customer-topbar .topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.customer-topbar .page-title,
+.customer-topbar .topbar-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0b1220;
+}
+
+/* right side controls (Acc-In-Touch, bell, avatar) */
+.customer-topbar .topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px; /* tightened gap */
+}
+
+/* Acc-In-Touch text */
+.customer-topbar .shop-selector {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  background: none;
+  border: none;
+  box-shadow: none;
+  cursor: default;
+}
+
+/* notification button */
+.customer-topbar .notif-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid rgba(16,24,40,0.06);
+  box-shadow: 0 6px 18px rgba(11,15,25,0.03);
+  cursor: pointer;
+  padding: 6px;
+  color: var(--accent);
+  transition: background .12s ease, transform .08s ease;
+}
+.customer-topbar .notif-btn:hover { transform: translateY(-1px); background: #f3f4ff; }
+
+/* avatar */
+.customer-topbar .user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 2px solid #fff;
+  box-shadow: 0 6px 18px rgba(11,15,25,0.06);
+  cursor: pointer;
+}
+
+/* =========================
+   Layout rows/columns & cards
+   ========================= */
 .stats-row {
   display: flex;
   gap: 16px;
@@ -59,6 +177,7 @@ html, body, #root {
   gap: 20px;
   align-items: flex-start;
   margin-top: 12px;
+  overflow-x: hidden; /* prevent children from forcing horizontal scroll */
 }
 
 .left-col {
@@ -69,26 +188,61 @@ html, body, #root {
 .right-col {
   width: 360px;
   flex: 0 0 360px;
+  min-width: 0;
 }
 
+/* =========================
+   Keep card-level scrollers (Recent Orders) — ensure they remain visible
+   =========================
+   Provide a sensible max-height so the card can scroll internally.
+   Adjust the -160px offset if you have additional stacked elements above/below it.
+*/
+.recent-orders-card {
+  max-height: calc(100vh - var(--topbar-height) - 160px); /* tweak offset as needed */
+  overflow-y: auto;  /* keep inner scrollbar */
+  overflow-x: hidden;
+}
+
+/* If your card uses a .card .body wrapper, ensure proper scrolling */
+.card .body {
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ensure cards don't push the page horizontally */
+.card, .recent-orders-card {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* =========================
+   Responsive tweaks
+   ========================= */
 @media (max-width: 1200px) {
   .right-col {
     width: 320px;
+    flex: 0 0 320px;
   }
 }
 
 @media (max-width: 980px) {
-  .cols {
-    flex-direction: column;
+  .cols { flex-direction: column; }
+  .right-col { width: 100%; flex: 0 0 auto; }
+  .stats-row { flex-direction: column; }
+
+  /* let everything grow naturally on small screens */
+  .dashboard-root, .dashboard-main { height: auto; overflow: visible; }
+
+  .customer-topbar {
+    padding: 8px 12px;
+    height: 52px;
   }
-  .right-col {
-    width: 100%;
-  }
-  .stats-row {
-    flex-direction: column;
-  }
-  .dashboard-root, .dashboard-main, .dashboard-content {
-    height: auto;
-    overflow: visible;
-  }
+  .customer-topbar .page-title { font-size: 16px; }
+  .customer-topbar .shop-selector { height: 30px; font-size: 13px; padding: 0 4px; }
+  .customer-topbar .notif-btn, .customer-topbar .user-avatar { width: 30px; height: 30px; }
+  .recent-orders-card { max-height: 320px; } /* fallback in small screens */
 }
+
+/* small spacing fix when topbar is sticky */
+.customer-topbar + .dashboard-content { margin-top: 6px; }

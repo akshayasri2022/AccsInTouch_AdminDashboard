@@ -5,20 +5,40 @@
   --brand-blue: #2563eb;
   --card-bg: #fff;
   --shadow-sm: 0 4px 10px rgba(15,23,42,0.04);
+  --pager-bg: #fff;
+  --pager-active-bg: #f9e9ff;
 }
 
 /* ================= PAGE BASE ================= */
+/* Safety: prevent accidental horizontal page scroll */
+html, body, #root {
+  box-sizing: border-box;
+  overflow-x: hidden;
+  height: 100%;
+}
+
 .customers-page-root,
 .cm-page-root {
   background: var(--page-bg);
   min-height: 100vh;
+  margin: 0;
+  padding: 0;
 }
 
+/* Reduced container padding so cards align with edge/topbar/sidebar */
 .customers-container,
 .cm-container {
-  padding: 18px 28px;
+  position: relative;                  /* used by filter positioning */
+  display: flex;                       /* column flow: top -> grid -> footer */
+  flex-direction: column;
+  min-height: calc(100vh - 64px);      /* leaves space for sticky topbar (adjust if needed) */
+  padding: 12px 16px;
   font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
   color: #0b1220;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 /* ================= TOP SECTION ================= */
@@ -34,7 +54,7 @@
 .top-row,
 .cm-top-row {
   display: flex;
-  align-items: center; /* vertical alignment between search & buttons */
+  align-items: center;
   gap: 12px;
   width: 100%;
 }
@@ -58,7 +78,7 @@
   color: #6b7280;
   box-sizing: border-box;
   position: relative;
-  top: -3px; /* slight uplift for visual alignment */
+  top: -3px; /* slight visual uplift */
 }
 
 .search-input::placeholder,
@@ -66,33 +86,31 @@
   color: #c7cbe0;
 }
 
-/* RIGHT SIDE BUTTONS — layout so Export and Add are parallel */
+/* RIGHT SIDE BUTTONS — Export / Add / Filters */
 .right-controls-grid,
 .cm-right-controls {
   display: grid;
-  grid-template-columns: auto auto; /* col1: export, col2: add area */
-  grid-template-rows: auto;         /* single row for Export + Add by default */
+  grid-template-columns: auto auto;
+  grid-template-rows: auto;
   gap: 8px 10px;
   align-items: center;
   justify-items: end;
   flex-shrink: 0;
 }
 
-/* make sure the export button sits left of add on the same row */
 .cm-right-controls > .cm-export-btn {
   grid-column: 1 / 2;
   grid-row: 1 / 2;
   justify-self: end;
 }
 
-/* place the add-button in column 2, row 1 (same as export) */
 .cm-right-controls > .cm-add-btn {
   grid-column: 2 / 3;
   grid-row: 1 / 2;
   justify-self: end;
 }
 
-/* keep a wrapper for your add+filter if present; default it to row 1 column 2 */
+/* Add + Filter wrapper */
 .cm-right-controls .cm-add-column {
   display: inline-flex;
   flex-direction: row;
@@ -100,9 +118,7 @@
   gap: 10px;
 }
 
-/* If markup still nests filter under add, target it below with position later */
-
-/* BUTTON VISUALS (original & cm- equivalents) */
+/* BUTTON VISUALS */
 .btn.export-pill,
 .cm-btn.cm-export-btn {
   display: inline-flex;
@@ -158,10 +174,9 @@
   align-items: center;
   gap: 8px;
   margin-top: 8px;
-  justify-content: space-between; /* put tabs left, and right area (filters) right */
+  justify-content: space-between;
 }
 
-/* left side tabs */
 .tabs-row .tabs-compact,
 .cm-tabs-row .tabs-compact {
   display: flex;
@@ -169,14 +184,8 @@
   gap: 8px;
 }
 
-/* right side (we will place the Filters pill here via CSS) */
-.cm-tabs-row .tabs-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.cm-tabs-row .tabs-right { display:flex; align-items:center; gap:8px; }
 
-/* tab styles */
 .tab,
 .cm-tab {
   background: #fff;
@@ -201,9 +210,14 @@
 .cm-grid {
   margin-top: 12px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(4, 1fr); /* 4 per row */
   gap: 18px;
   align-items: start;
+
+  /* allow the grid to expand so footer sits below it naturally */
+  flex: 1 1 auto;
+  padding-bottom: 22px; /* breathing room above footer */
+  overflow: visible;
 }
 
 .customer-card,
@@ -238,132 +252,129 @@
   justify-content: space-between;
   align-items: flex-start;
 }
-
-.card-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.card-checkbox { display: flex; align-items: center; gap: 8px; }
 .card-checkbox input { display: none; }
 .card-checkbox .checkbox-fake {
-  width: 18px;
-  height: 18px;
-  border-radius: 6px;
-  border: 1px solid rgba(16, 24, 40, 0.08);
-  background: #fff;
-  display: inline-block;
+  width: 18px; height: 18px; border-radius: 6px;
+  border: 1px solid rgba(16,24,40,0.08); background:#fff; display:inline-block;
 }
 .card-checkbox input:checked + .checkbox-fake {
-  background: linear-gradient(180deg, #b31b8a, #6b46b6);
-  border: none;
+  background: linear-gradient(180deg, #b31b8a, #6b46b6); border: none;
 }
 
 /* avatar */
 .avatar-wrap,
-.cm-avatar-wrap {
-  display: flex;
-  justify-content: center;
-}
-.avatar,
-.cm-avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 999px;
-  object-fit: cover;
-  background: #eef2ff;
+.cm-avatar-wrap { display: flex; justify-content: center; }
+.avatar, .cm-avatar {
+  width: 72px; height: 72px; border-radius: 999px; object-fit: cover; background: #eef2ff;
 }
 
 /* card body */
-.card-body,
-.cm-card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
-  text-align: center;
+.card-body, .cm-card-body {
+  display: flex; flex-direction: column; gap: 8px; align-items:center; text-align:center;
 }
+.card-name, .cm-card-name { font-weight:700; font-size:14px; color:#111827; }
 
-.card-name,
-.cm-card-name {
-  font-weight: 700;
-  font-size: 14px;
-  color: #111827;
+/* status badge */
+.status-badge, .cm-status-badge, .cm-status {
+  font-weight: 700; font-size: 11px; padding: 6px 8px; border-radius: 999px;
 }
-
-/* status badge (both) */
-.status-badge,
-.cm-status-badge,
-.cm-status {
-  font-weight: 700;
-  font-size: 11px;
-  padding: 6px 8px;
-  border-radius: 999px;
+.status-badge.active, .cm-status-badge.active, .cm-status.active {
+  background: #f3f0ff; color: #6f2db4; border: 1px solid rgba(111,45,180,0.06);
 }
-.status-badge.active,
-.cm-status-badge.active,
-.cm-status.active {
-  background: #f3f0ff;
-  color: #6f2db4;
-  border: 1px solid rgba(111, 45, 180, 0.06);
-}
-.status-badge.blocked,
-.cm-status-badge.blocked,
-.cm-status.blocked {
-  background: #fff1f2;
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.06);
+.status-badge.blocked, .cm-status-badge.blocked, .cm-status.blocked {
+  background: #fff1f2; color: #ef4444; border: 1px solid rgba(239,68,68,0.06);
 }
 
 /* stats row */
-.card-stats,
-.cm-card-stats {
-  display: flex;
-  gap: 18px;
-  width: 100%;
-  justify-content: space-between;
-  color: var(--muted);
-  font-size: 13px;
+.card-stats, .cm-card-stats {
+  display: flex; gap: 18px; width: 100%; justify-content: space-between; color:var(--muted); font-size:13px;
 }
-.stat-label,
-.cm-stat-label { font-size: 11px; color: #9aa3b2; }
-.stat-value,
-.cm-stat-value { font-weight: 700; color: #111827; }
+.stat-label, .cm-stat-label { font-size:11px; color:#9aa3b2; }
+.stat-value, .cm-stat-value { font-weight:700; color:#111827; }
 
 /* ================= FOOTER (pagination) ================= */
+/* Footer sits after the grid (non-sticky), left summary and right pager */
 .customers-footer,
 .cm-footer {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-top: 18px;
+  justify-content: space-between;
   gap: 12px;
+  margin-top: 18px;
+  padding: 10px 2px; /* compact vertical padding */
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  border-top: 0;
+  box-shadow: none;
 }
+
+/* summary text on the left */
+.customers-footer .summary,
+.cm-footer .summary {
+  color: #374151;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* pagination group on the right */
 .pager,
-.cm-pager { display: flex; gap: 8px; align-items: center; }
+.cm-pager {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* pager button base (pill) */
 .page,
 .cm-page {
-  min-width: 34px;
-  height: 34px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid rgba(16, 24, 40, 0.06);
-  background: #fff;
+  background: var(--pager-bg);
   font-weight: 700;
   cursor: pointer;
+  box-shadow: 0 6px 18px rgba(11,15,25,0.03);
+  font-size: 13px;
+  transition: transform .12s ease, box-shadow .12s ease;
 }
+
+/* small chevrons */
+.page.chev, .cm-page.chev { min-width: 34px; }
+
+/* hover / focus */
+.page:hover, .cm-page:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(107,70,182,0.06);
+}
+
+/* active page style: soft purple halo */
 .page.active,
 .cm-page.active {
-  background: linear-gradient(180deg, #fef2ff, #fdf2ff);
+  background: linear-gradient(180deg, #fff0ff, #fde7ff);
   color: var(--accent);
-  box-shadow: 0 8px 22px rgba(139, 17, 104, 0.06);
+  border: none;
+  box-shadow: 0 12px 30px rgba(139,17,104,0.08);
 }
-.page:disabled,
-.cm-page:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* ================= MODALS ================= */
-/* (kept as in original file) */
+/* disabled */
+.page:disabled,
+.cm-page:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ================= MODALS (kept) ================= */
 .cm-modal-backdrop,
 .cm-modal,
 .add-modal-backdrop,
@@ -411,7 +422,7 @@
 
 /* avatar overlap */
 .cm-avatar-large-wrap,
-.cm-avatar-wrap { display: flex; justify-content: center; margin-top: -36px; /* pull avatar into banner */ }
+.cm-avatar-wrap { display: flex; justify-content: center; margin-top: -36px; }
 .cm-avatar-large,
 .cm-avatar {
   width: 84px;
@@ -545,6 +556,10 @@
   .add-modal-form .form-grid,
   .cm-add-form .form-grid { grid-template-columns: 1fr; }
   .phone-row { flex-direction: column; align-items: stretch; }
+
+  /* Mobile footer stacks nicely */
+  .cm-footer { flex-direction: column; gap: 10px; align-items: flex-start; padding: 10px 0; }
+  .cm-pager { align-self: flex-end; }
 }
 
 @media (max-width: 680px) {
@@ -562,9 +577,9 @@
   .cm-right-controls .cm-filter-btn { grid-column: 1 / 2; grid-row: 3 / 4; align-self: start; margin-top: 6px; }
 
   .customers-grid,
-  .cm-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .cm-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; padding-bottom: 12px; }
 
-  /* modals */
+  /* modals and avatars resize */
   .cm-modal { width: 320px; }
   .cm-avatar, .cm-avatar-large { width: 72px; height: 72px; border-width: 6px; }
   .add-modal,
@@ -572,32 +587,20 @@
 }
 
 /* ================= PLACEMENT: Move Filters to right side of tabs ================= */
-
-/* If your markup places the Filters button inside the .cm-right-controls (e.g. nested inside cm-add-column),
-   this rule locates it visually on the tabs row by moving it using absolute positioning anchored to the container. */
-
-/* Parent to anchor the positioned filter: place relative context on the container that wraps tabs and top-row */
-.cm-container {
-  position: relative;
-}
-
-/* Visually move the filter pill to the right end of the tabs row */
+/* Anchor context (already set above .cm-container) */
 .cm-right-controls .cm-filter-btn {
   position: absolute !important;
-  right: 28px;      /* match container padding, tweak if needed */
-  top: 80px;        /* vertical placement to align with tabs row (adjust if necessary) */
+  right: 28px;      /* matches container padding */
+  top: 65px;        /* tweak vertically to align with tabs */
   z-index: 50;
   margin: 0 !important;
   box-shadow: 0 6px 18px rgba(11,15,25,0.03) !important;
   background: #fff;
 }
 
-/* reduce the tabs-row top margin to bring tabs and moved filter visually closer */
-.cm-tabs-row {
-  margin-top: 6px !important;
-}
+/* small adjustment to bring tabs and moved filter closer */
+.cm-tabs-row { margin-top: 6px !important; }
 
-/* Responsive fallback: for small screens we'll revert the filter to normal flow */
 @media (max-width: 820px) {
   .cm-right-controls .cm-filter-btn {
     position: static !important;
@@ -607,5 +610,3 @@
   }
   .cm-tabs-row { margin-top: 10px !important; }
 }
-
-
