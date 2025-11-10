@@ -1,28 +1,34 @@
 // src/components/AddProductForm.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import "../styles/AddProductForm.css";
 
 export default function AddProductForm({ onCancel, onProductAdded }) {
   const navigate = useNavigate();
   
-  // Form state - CHANGED: status starts as empty string
+  const [products, setProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [errorProducts, setErrorProducts] = useState("");
+
+ // Form state
   const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    basePrice: "",
-    discountPercentage: "",
-    sku: "",
-    barcode: "",
-    quantity: "",
-    weight: "",
-    height: "",
-    length: "",
-    width: "",
-    category: "",
-    tags: "",
-    status: "", // CHANGED: from "in-stock" to ""
-    isPhysical: true
+    productName: "",
+    productDescription: "",
+    basicPricing: "",
+    discountType: "",
+    productSKU: "",
+    productBarcode: "",
+    productQuantity: "",
+    productWeight: "",
+    productHeight: "",
+    productLength: "",
+    productWidth: "",
+    productCategory: "",
+    productTags: "",
+    productStatus: "",
+    image_url:[],
+    isPhysical: false,
   });
 
   const [image, setImage] = useState(null);
@@ -31,14 +37,34 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
   const [loading, setLoading] = useState(false);
   const [popup, setPopup] = useState({ show: false, type: "", message: "" });
 
+
   const defaultImage = "https://cdn-icons-png.flaticon.com/512/7486/7486744.png";
+
+    useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoadingProducts(true);
+        const res = await axios.get("https://acc-in-touch-1.onrender.com/api/Product"); // Change baseURL if needed
+        setProducts(res.data);
+      } catch (err) {
+        console.error("Error fetching products:", err);
+        setErrorProducts("Failed to load products");
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
 
   // Show popup
   const showPopup = (type, message) => {
     setPopup({ show: true, type, message });
   };
 
-  // Close popup and navigate
+
+  // Close popup
   const closePopup = () => {
     setPopup({ show: false, type: "", message: "" });
     if (popup.type === "success") {
@@ -48,25 +74,29 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
     }
   };
 
+
   // Handle input changes
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value
+      [name]: type === "checkbox" ? checked : value,
     }));
-    // Clear error for this field
     if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: "" }));
+      setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
 
-  // Handle image upload
+
+  // Image upload
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        setErrors(prev => ({ ...prev, image: "Image size should be less than 5MB" }));
+        setErrors((prev) => ({
+          ...prev,
+          image_url: "Image size should be less than 5MB",
+        }));
         return;
       }
       setImage(file);
@@ -75,103 +105,83 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
         setImagePreview(reader.result);
       };
       reader.readAsDataURL(file);
-      setErrors(prev => ({ ...prev, image: "" }));
+      setErrors((prev) => ({ ...prev, image_url: "" }));
     }
   };
 
   // Validate form - ADDED: status validation
-  const validateForm = () => {
-    const newErrors = {};
+  // const validateForm = () => {
+  //   const newErrors = {};
 
-    if (!formData.name.trim()) newErrors.name = "Product name is required";
-    if (!formData.basePrice || parseFloat(formData.basePrice) <= 0) {
-      newErrors.basePrice = "Base price is required";
-    }
-    if (!formData.category) newErrors.category = "Category is required";
-    if (!formData.sku.trim()) newErrors.sku = "SKU is required";
-    if (!formData.quantity || parseInt(formData.quantity) < 0) {
-      newErrors.quantity = "Quantity is required";
-    }
-    if (!formData.status) newErrors.status = "Product status is required"; // ADDED
+  //   // if (!formData.productName.trim()) newErrors.productName = "Product name is required";
+  //   // if (!formData.basicPricing || parseFloat(formData.basicPricing) <= 0) {
+  //   //   newErrors.basicPricing = "Base price is required";
+  //   // }
+  //   if (!formData.productCategory) newErrors.productCategory = "Category is required";
+  //   // if (!formData.productSKU.trim()) newErrors.productSKU = "SKU is required";
+  //   if (!formData.productQuantity || parseInt(formData.productQuantity) < 0) {
+  //     newErrors.productQuantity = "Quantity is required";
+  //   }
+  //   if (!formData.status) newErrors.status = "Product status is required"; // ADDED
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  //   setErrors(newErrors);
+  //   return Object.keys(newErrors).length === 0;
+  // };
 
   // Handle form submission (Frontend only)
-  const handleSubmit = async () => {
-    if (!validateForm()) {
-      showPopup("error", "Please fill all mandatory fields");
-      return;
+ const handleSubmit = async () => {
+    // if (!validateForm()) {
+    //   showPopup("error", "Please fill all mandatory fields");
+    //   return;
+    // }
+
+    try {
+      setLoading(true);
+      const data = new FormData();
+
+      // Append all form fields
+      Object.entries(formData).forEach(([key, value]) => {
+        data.append(key, value);
+      });
+
+      // Append image if selected
+if (image) {
+  data.append("image_url", image); // ✅ must match backend field name
+}
+
+
+      // POST to backend API
+      const res = await axios.post(
+        "https://acc-in-touch-1.onrender.com/api/Product",
+        data,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+
+      console.log("✅ Product Created:", res.data);
+
+      if (onProductAdded) onProductAdded(res.data);
+
+      showPopup("success", "Product added successfully!");
+    } catch (error) {
+      console.error("❌ Error creating product:", error);
+      showPopup("error", error.response?.data?.message || "Failed to add product.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(true);
-
-    // Simulate network delay
-    setTimeout(() => {
-      try {
-        // Calculate final price with discount
-        const finalPrice = formData.discountPercentage 
-          ? parseFloat(formData.basePrice) * (1 - parseFloat(formData.discountPercentage) / 100)
-          : parseFloat(formData.basePrice);
-
-        // Create new product object
-        const newProduct = {
-          id: Date.now(),
-          name: formData.name.trim(),
-          description: formData.description.trim(),
-          basePrice: parseFloat(formData.basePrice),
-          discountPercentage: formData.discountPercentage || 0,
-          finalPrice: parseFloat(finalPrice.toFixed(2)),
-          sku: formData.sku.trim(),
-          barcode: formData.barcode.trim(),
-          quantity: parseInt(formData.quantity),
-          weight: formData.weight || 0,
-          height: formData.height || 0,
-          length: formData.length || 0,
-          width: formData.width || 0,
-          category: formData.category,
-          tags: formData.tags.trim().split(',').map(tag => tag.trim()).filter(tag => tag),
-          status: formData.status,
-          isPhysical: formData.isPhysical,
-          image: imagePreview || defaultImage,
-          createdAt: new Date().toISOString()
-        };
-
-        console.log("New Product Created:", newProduct);
-
-        // Save to localStorage for persistence
-        const existingProducts = JSON.parse(localStorage.getItem('products') || '[]');
-        existingProducts.push(newProduct);
-        localStorage.setItem('products', JSON.stringify(existingProducts));
-
-        // Notify parent component
-        if (onProductAdded) {
-          onProductAdded(newProduct);
-        }
-
-        showPopup("success", "Product added successfully!");
-      } catch (error) {
-        console.error("Error adding product:", error);
-        showPopup("error", "Failed to add product. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    }, 800);
   };
 
-  function goToProductManagement() {
+  const goToProductManagement = () => {
     navigate("/ProductManagement");
-  }
+  };
 
   return (
-    <div className="add-product-container full-page">
+    <div className="addProductadd-product-container full-page">
     
       {/* Popup Modal */}
       {popup.show && (
-        <div className="popup-overlay" onClick={closePopup}>
-          <div className="popup-modal" onClick={(e) => e.stopPropagation()}>
-            <div className={`popup-icon ${popup.type}`}>
+        <div className="addProductpopup-overlay" onClick={closePopup}>
+          <div className="addProductpopup-modal" onClick={(e) => e.stopPropagation()}>
+            <div className={`addProductpopup-icon ${popup.type}`}>
               {popup.type === "success" ? (
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
                   <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -182,11 +192,11 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
                 </svg>
               )}
             </div>
-            <h3 className="popup-title">
+            <h3 className="addProductpopup-title">
               {popup.type === "success" ? "Success!" : "Error"}
             </h3>
-            <p className="popup-message">{popup.message}</p>
-            <button className="popup-button" onClick={closePopup}>
+            <p className="addProductpopup-message">{popup.message}</p>
+            <button className="addProductpopup-button" onClick={closePopup}>
               {popup.type === "success" ? "Go to Products" : "Close"}
             </button>
           </div>
@@ -194,67 +204,67 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
       )}
 
       {/* Top bar */}
-      <div className="add-product-top top-v2">
-        <div className="breadcrumb">
+      <div className="addProductadd-product-top top-v2">
+        <div className="addProductbreadcrumb">
           <span
-            className="crumb-link"
+            className="addProductcrumb-link"
             onClick={goToProductManagement}
             role="link"
             tabIndex={0}
           >
             Product
           </span>
-          <span className="crumb-sep">›</span>
-          <span className="crumb-current">Add Product</span>
+          <span className="addProductcrumb-sep">›</span>
+          <span className="addProductcrumb-current">Add Product</span>
         </div>
 
-        <div className="top-buttons">
+        <div className="addProducttop-buttons">
           <button 
-            className="btn cancel outlined" 
+            className="addProductbtn cancel outlined" 
             onClick={onCancel || goToProductManagement}
           >
-            <span className="btn-text">Cancel</span>
+            <span className="addProductbtn-text">Cancel</span>
           </button>
 
           <button 
-            className="btn add-product filled" 
+            className="addProductbtn add-product filled" 
             type="button"
             onClick={handleSubmit}
             disabled={loading}
           >
-            <span className="btn-text">{loading ? "Adding..." : "Add Product"}</span>
+            <span className="addProductbtn-text">{loading ? "Adding..." : "Add Product"}</span>
           </button>
         </div>
       </div>
 
       {/* Main Layout */}
-      <div className="add-product-layout">
+      <div className="addProductadd-product-layout">
         {/* Left Column */}
-        <div className="add-left">
+        <div className="addProductadd-left">
           {/* General Info */}
-          <section className="card">
-            <h3 className="card-title">General Information</h3>
+          <section className="addProductcard">
+            <h3 className="addProductcard-title">General Information</h3>
             
-            <div className="form-row">
-              <label className="label">
-                Product Name <span className="required">*</span>
+            <div className="addProductform-row">
+              <label className="addProductlabel">
+                Product Name <span className="addProductrequired">*</span>
               </label>
               <input 
-                className={`input ${errors.name ? 'error' : ''}`}
-                name="name"
-                value={formData.name}
+                className={`addProductinput ${errors.name ? 'error' : ''}`}
+                name="productName"
+                value={formData.productName}
                 onChange={handleChange}
                 placeholder="Type product name here…"
               />
-              {errors.name && <span className="error-text">{errors.name}</span>}
+              {/* {errors.name && <span className="addProducterror-text">{errors.name}</span>} */}
             </div>
 
-            <div className="form-row">
-              <label className="label">Product Description</label>
+            <div className="addProductform-row">
+              <label className="addProductlabel">Product Description</label>
               <textarea
-                className="textarea"
-                name="description"
-                value={formData.description}
+                className="addProducttextarea"
+                name="productDescription"
+                value={formData.productDescription}
                 onChange={handleChange}
                 placeholder="Type product description here…"
               />
@@ -262,18 +272,18 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
           </section>
 
           {/* Media */}
-          <section className="card">
-            <h3 className="card-title">Media</h3>
-            <div className="media-dropzone">
-              <div className="image-preview-box">
+          <section className="addProductcard">
+            <h3 className="addProductcard-title">Media</h3>
+            <div className="addProductmedia-dropzone">
+              <div className="addProductimage-preview-box">
                 <img
                   src={imagePreview || defaultImage}
                   alt="Preview"
-                  className={imagePreview ? "uploaded-image" : "default-image"}
+                  className={imagePreview ? "addProductuploaded-image" : "addProductdefault-image"}
                 />
               </div>
 
-              <div className="media-note">
+              <div className="addProductmedia-note">
                 Drag and drop image here, or click add image
               </div>
 
@@ -284,60 +294,60 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
                 style={{ display: "none" }}
                 id="image-upload"
               />
-              <label htmlFor="image-upload" className="btn outline small">
+              <label htmlFor="image-upload" className="addProductbtn outline small">
                 Add Image
               </label>
-              {errors.image && <span className="error-text">{errors.image}</span>}
+              {/* {errors.image && <span className="addProducterror-text">{errors.image}</span>} */}
             </div>
           </section>
 
           {/* Pricing */}
-          <section className="card">
-            <h3 className="card-title">Pricing</h3>
+          <section className="addProductcard">
+            <h3 className="addProductcard-title">Pricing</h3>
             
-            <div className="form-row">
-              <label className="label">
-                Base Price <span className="required">*</span>
+            <div className="addProductform-row">
+              <label className="addProductlabel">
+                Base Price <span className="addProductrequired">*</span>
               </label>
               <input 
-                className={`input no-arrows ${errors.basePrice ? 'error' : ''}`}
-                name="basePrice"
+                className={`addProductinput no-arrows ${errors.basicPricing ? 'error' : ''}`}
+                name="basicPricing"
                 type="number"
-                value={formData.basePrice}
+                value={formData.basicPricing}
                 onChange={handleChange}
                 placeholder="$ Type base price here…"
               />
-              {errors.basePrice && <span className="error-text">{errors.basePrice}</span>}
+              {/* {errors.basicPricing && <span className="addProducterror-text">{errors.basicPricing}</span>} */}
             </div>
 
-            <div className="form-row two">
-              <div className="input-wrapper">
-                <label className="label">Discount Percentage</label>
+            <div className="addProductform-row two">
+              <div className="addProductinput-wrapper">
+                <label className="addProductlabel">Discount Percentage</label>
                 <select 
-                  className="select"
-                  name="discountPercentage"
-                  value={formData.discountPercentage}
+                  className="addProductselect"
+                  name="discountType"
+                  value={formData.discountType}
                   onChange={handleChange}
                 >
                   <option value="">No Discount</option>
-                  <option value="5">5%</option>
-                  <option value="10">10%</option>
-                  <option value="15">15%</option>
-                  <option value="20">20%</option>
-                  <option value="25">25%</option>
-                  <option value="30">30%</option>
-                  <option value="35">35%</option>
-                  <option value="40">40%</option>
-                  <option value="45">45%</option>
-                  <option value="50">50%</option>
+                  <option value="5%">5%</option>
+                  <option value="10%">10%</option>
+                  <option value="15%">15%</option>
+                  <option value="20%">20%</option>
+                  <option value="25%">25%</option>
+                  <option value="30%">30%</option>
+                  <option value="35%">35%</option>
+                  <option value="40%">40%</option>
+                  <option value="45%">45%</option>
+                  <option value="50%">50%</option>
                 </select>
               </div>
               
-              {formData.basePrice && formData.discountPercentage && (
-                <div className="input-wrapper">
-                  <label className="label">Final Price</label>
-                  <div className="final-price">
-                    ${(parseFloat(formData.basePrice) * (1 - parseFloat(formData.discountPercentage) / 100)).toFixed(2)}
+              {formData.basicPricing && formData.discountType && (
+                <div className="addProductinput-wrapper">
+                  <label className="addProductlabel">Final Price</label>
+                  <div className="addProductfinal-price">
+                    ${(parseFloat(formData.basicPricing) * (1 - parseFloat(formData.discountType) / 100)).toFixed(2)}
                   </div>
                 </div>
               )}
@@ -345,55 +355,56 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
           </section>
 
           {/* Inventory */}
-          <section className="card">
-            <h3 className="card-title">Inventory</h3>
-            <div className="form-row three">
-              <div className="input-wrapper">
-                <label className="label">
-                  SKU <span className="required">*</span>
+          <section className="addProductcard">
+            <h3 className="addProductcard-title">Inventory</h3>
+            <div className="addProductform-row three">
+              <div className="addProductinput-wrapper">
+                <label className="addProductlabel">
+                  SKU <span className="addProductrequired">*</span>
                 </label>
                 <input 
-                  className={`input ${errors.sku ? 'error' : ''}`}
-                  name="sku"
-                  value={formData.sku}
-                  onChange={handleChange}
-                  placeholder="SKU"
+                  className={`addProductinput ${errors.productSKU ? 'error' : ''}`}
+                  name="productSKU"
+                  value={formData.productSKU || ""}
+                  // onChange={handleChange}
+                  placeholder="SKU While Auto Generate"
+                  readOnly
                 />
-                {errors.sku && <span className="error-text">{errors.sku}</span>}
+                {/* {errors.sku && <span className="addProducterror-text">{errors.sku}</span>} */}
               </div>
 
-              <div className="input-wrapper">
-                <label className="label">Barcode</label>
+              <div className="addProductinput-wrapper">
+                <label className="addProductlabel">Barcode</label>
                 <input 
-                  className="input"
-                  name="barcode"
-                  value={formData.barcode}
+                  className="addProductinput"
+                  name="productBarcode"
+                  value={formData.productBarcode}
                   onChange={handleChange}
                   placeholder="Barcode"
                 />
               </div>
 
-              <div className="input-wrapper">
-                <label className="label">
-                  Quantity <span className="required">*</span>
+              <div className="addProductinput-wrapper">
+                <label className="addProductlabel">
+                  Quantity <span className="addProductrequired">*</span>
                 </label>
                 <input 
-                  className={`input no-arrows ${errors.quantity ? 'error' : ''}`}
-                  name="quantity"
+                  className={`addProductinput no-arrows ${errors.productQuantity ? 'error' : ''}`}
+                  name="productQuantity"
                   type="number"
-                  value={formData.quantity}
+                  value={formData.productQuantity}
                   onChange={handleChange}
                   placeholder="Quantity"
                 />
-                {errors.quantity && <span className="error-text">{errors.quantity}</span>}
+                {/* {errors.quantity && <span className="addProducterror-text">{errors.quantity}</span>} */}
               </div>
             </div>
           </section>
 
           {/* Shipping */}
-          <section className="card">
-            <h3 className="card-title">Shipping</h3>
-            <div className="shipping-toggle">
+          <section className="addProductcard">
+            <h3 className="addProductcard-title">Shipping</h3>
+            <div className="addProductshipping-toggle">
               <input 
                 type="checkbox" 
                 id="physical"
@@ -404,50 +415,50 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
               <label htmlFor="physical">This is a physical product</label>
             </div>
             {formData.isPhysical && (
-              <div className="form-row four" style={{ marginTop: 12 }}>
-                <div className="input-wrapper">
-                  <label className="label">Weight (g)</label>
+              <div className="addProductform-row four" style={{ marginTop: 12 }}>
+                <div className="addProductinput-wrapper">
+                  <label className="addProductlabel">Weight (g)</label>
                   <input 
-                    className="input no-arrows"
-                    name="weight"
-                    type="number"
-                    value={formData.weight}
+                    className="addProductinput no-arrows"
+                    name="productWeight"
+                    type="text"
+                    value={formData.productWeight}
                     onChange={handleChange}
                     placeholder="Weight"
                   />
                 </div>
 
-                <div className="input-wrapper">
-                  <label className="label">Height (cm)</label>
+                <div className="addProductinput-wrapper">
+                  <label className="addProductlabel">Height (cm)</label>
                   <input 
-                    className="input no-arrows"
-                    name="height"
-                    type="number"
-                    value={formData.height}
+                    className="addProductinput no-arrows"
+                    name="productHeight"
+                    type="text"
+                    value={formData.productHeight}
                     onChange={handleChange}
                     placeholder="Height"
                   />
                 </div>
 
-                <div className="input-wrapper">
-                  <label className="label">Length (cm)</label>
+                <div className="addProductinput-wrapper">
+                  <label className="addProductlabel">Length (cm)</label>
                   <input 
-                    className="input no-arrows"
-                    name="length"
-                    type="number"
-                    value={formData.length}
+                    className="addProductinput no-arrows"
+                    name="productLength"
+                    type="text"
+                    value={formData.productLength}
                     onChange={handleChange}
                     placeholder="Length"
                   />
                 </div>
 
-                <div className="input-wrapper">
-                  <label className="label">Width (cm)</label>
+                <div className="addProductinput-wrapper">
+                  <label className="addProductlabel">Width (cm)</label>
                   <input 
-                    className="input no-arrows"
-                    name="width"
-                    type="number"
-                    value={formData.width}
+                    className="addProductinput no-arrows"
+                    name="productWidth"
+                    type="text"
+                    value={formData.productWidth}
                     onChange={handleChange}
                     placeholder="Width"
                   />
@@ -458,54 +469,56 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
         </div>
 
         {/* Right Sidebar */}
-        <div className="add-right">
-          <section className="card sidebar-card">
-            <h3 className="card-title">Category</h3>
+        <div className="addProductadd-right">
+          <section className="addProductcard sidebar-card">
+            <h3 className="addProductcard-title">Category</h3>
             
-            <label className="label">
-              Product Category <span className="required">*</span>
+            <label className="addProductlabel">
+              Product Category <span className="addProductrequired">*</span>
             </label>
             <select 
-              className={`select ${errors.category ? 'error' : ''}`}
-              name="category"
-              value={formData.category}
+              className="addProductselect"
+              name="productCategory"
+              value={formData.productCategory}
               onChange={handleChange}
+              required
             >
               <option value="">Select a category</option>
-              <option value="hairbows">Hair Bows</option>
+              <option value="hairBows">Hair Bows</option>
               <option value="claws">Claws</option>
               <option value="scrunchies">Scrunchies</option>
-              <option value="earrings">Earrings</option>
+              <option value="Earrings">Earrings</option>
             </select>
-            {errors.category && <span className="error-text">{errors.category}</span>}
+            {/* {errors.category && <span className="addProducterror-text">{errors.category}</span>} */}
 
-            <label className="label" style={{ marginTop: 16 }}>Product Tags</label>
+            <label className="addProductlabel" style={{ marginTop: 16 }}>Product Tags</label>
             <input 
-              className="input"
-              name="tags"
-              value={formData.tags}
+              className="addProductinput"
+              name="productTags"
+              value={formData.productTags}
               onChange={handleChange}
-              placeholder="e.g., summer, colorful, trending"
+              placeholder="e.g., colorful, trending"
             />
-            <div className="helper-text">Separate tags with commas</div>
+            <div className="addProducthelper-text">Separate tags with commas</div>
 
             {/* UPDATED: Status field is now mandatory */}
-            <label className="label" style={{ marginTop: 16 }}>
-              Product Status <span className="required">*</span>
+            <label className="addProductlabel" style={{ marginTop: 16 }}>
+              Product Status <span className="addProductrequired">*</span>
             </label>
             <select 
-              className={`select ${errors.status ? 'error' : ''}`}
-              name="status"
-              value={formData.status}
+              className="editproductselect"
+              name="productStatus"
+              value={formData.productStatus}
               onChange={handleChange}
             >
               <option value="">Select status</option>
-              <option value="in-stock">In Stock</option>
-              <option value="low-stock">Low Stock</option>
-              <option value="out-of-stock">Out of Stock</option>
-              <option value="discontinued">Discontinued</option>
+              <option value="inStock">In Stock</option>
+              <option value="lowStack">Low Stock</option>
+              <option value="outOfStock">Out of Stock</option>
+              <option value="disscontinued">Discontinued</option>
+              <option value="draft">Draft</option>
             </select>
-            {errors.status && <span className="error-text">{errors.status}</span>}
+            {/* {errors.status && <span className="addProducterror-text">{errors.status}</span>} */}
           </section>
         </div>
       </div>

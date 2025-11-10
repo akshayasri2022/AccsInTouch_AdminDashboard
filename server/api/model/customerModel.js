@@ -18,7 +18,7 @@ const CustomerCreation = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-        phoneNumber: {
+    phoneNumber: {
       type: DataTypes.STRING,
       allowNull: true,
     },
@@ -26,7 +26,7 @@ const CustomerCreation = sequelize.define(
     //   type: DataTypes.ENUM("Male", "Female", "Others"),
     //   allowNull: true,
     // },
-    BuildingNo_Streetaddr:{
+    BuildingNo_Streetaddr: {
       type: DataTypes.STRING,
       allowNull: true,
     },
@@ -42,11 +42,11 @@ const CustomerCreation = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    BillingAddress:{
+    BillingAddress: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-        customerID: {
+    customerID: {
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,

@@ -15,7 +15,7 @@
   --magenta-end: #8a1168;
 }
 
-.add-product-container {
+.editproductadd-product-container {
   width: 100%;
   padding: 20px;
   box-sizing: border-box;
@@ -24,13 +24,13 @@
 }
 
 /* ===== Topbar section above form ===== */
-.add-product-top {
+.editproductadd-product-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
 }
-.add-product-top .breadcrumb {
+.editproductadd-product-top .editproductbreadcrumb {
   display: flex;
   align-items: center;
   font-size: 14px;
@@ -38,20 +38,20 @@
   font-weight: 600;
   gap: 6px;
 }
-.breadcrumb .crumb-current {
+.editproductbreadcrumb .editproductcrumb-current {
   color: #4f46e5;
   font-weight: 700;
 }
 
 /* top buttons container */
-.top-buttons {
+.editproducttop-buttons {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
 /* common button base */
-.btn {
+.editproductbtn {
   display: inline-flex;
   align-items: center;
   gap: 12px;
@@ -70,8 +70,8 @@
 }
 
 /* icon box / icon circle (left) */
-.icon-box,
-.icon-circle {
+.editproducticon-box,
+.editproducticon-circle {
   width: var(--icon-box-size);
   height: var(--icon-box-size);
   display: inline-flex;
@@ -83,7 +83,7 @@
 }
 
 /* Cancel button (outlined) */
-.btn.cancel.outlined {
+.editproductbtn.cancel.outlined {
   background: #fff;
   color: #374151;
   border: 1px solid var(--cancel-border);
@@ -93,7 +93,7 @@
 }
 
 /* Cancel icon square specifics */
-.btn.cancel.outlined .icon-circle {
+.editproductbtn.cancel.outlined .editproducticon-circle {
   background: #ffffff;
   border: 1px solid var(--cancel-inner-border);
   color: #6b7280;
@@ -101,18 +101,18 @@
 }
 
 /* Cancel hover/focus */
-.btn.cancel.outlined:hover {
+.editproductbtn.cancel.outlined:hover {
   background: #fbfdff;
   transform: translateY(-1px);
 }
-.btn.cancel.outlined:focus {
+.editproductbtn.cancel.outlined:focus {
   outline: none;
   box-shadow: 0 0 0 4px rgba(99,102,241,0.06);
   border-color: rgba(99,102,241,0.16);
 }
 
 /* Save button (filled) */
-.btn.add-product.filled {
+.editproductbtn.add-product.filled {
   background: linear-gradient(180deg, var(--magenta-start), var(--magenta-end));
   color: #fff;
   font-weight: 700;
@@ -121,14 +121,14 @@
 }
 
 /* Save icon box specifics */
-.btn.add-product.filled .icon-box {
+.editproductbtn.add-product.filled .editproducticon-box {
   background: rgba(255,255,255,0.12);
   box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset;
 }
 
 /* make inner svgs consistent */
-.icon-box svg,
-.icon-circle svg {
+.editproducticon-box svg,
+.editproducticon-circle svg {
   width: 14px;
   height: 14px;
   display: block;
@@ -137,7 +137,7 @@
 }
 
 /* keep btn-text left aligned and allow wrap */
-.btn .btn-text {
+.editproductbtn .editproductbtn-text {
   line-height: 1.05;
   display: inline-block;
   text-align: left;
@@ -145,26 +145,30 @@
 }
 
 /* hover / focus for save */
-.btn.add-product.filled:hover {
+.editproductbtn.add-product.filled:hover {
   transform: translateY(-1px);
   opacity: 0.98;
 }
-.btn.add-product.filled:focus {
+.editproductbtn.add-product.filled:focus {
   outline: none;
   box-shadow: 0 0 0 4px rgba(179,27,138,0.12);
 }
 
 /* Layout & other styles (kept from original) */
-.add-product-layout {
+.editproductadd-product-layout {
   display: flex;
   gap: 20px;
   align-items: flex-start;
 }
-.add-left {
+.editproductadd-left {
   flex: 1 1 0;
   min-width: 0;
+  /* height: 34vw; */
+  /* overflow-y: scroll; */
+  /* border: 2px solid red; */
+
 }
-.add-right {
+.editproductadd-right {
   width: 280px;
   flex: 0 0 280px;
   display: flex;
@@ -173,7 +177,7 @@
 }
 
 /* Card */
-.card {
+.editproductcard {
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(16, 24, 40, 0.04);
@@ -181,7 +185,7 @@
   margin-bottom: 18px;
   box-sizing: border-box;
 }
-.card-title {
+.editproductcard-title {
   font-size: 16px;
   font-weight: 700;
   margin-bottom: 14px;
@@ -189,31 +193,35 @@
 }
 
 /* Form */
-.form-row {
+.editproductform-row {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  width: 25vw;
   margin-bottom: 12px;
 }
-.form-row.two {
+.editproductform-row.two {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.editproductform-row.three {
+  display: flex;
   flex-direction: row;
   gap: 10px;
+  width: 55vw;
+  /* border: 1px solid; */
 }
-.form-row.three {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-.form-row.four {
+.editproductform-row.four {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 10px;
 }
 
-.input,
-.textarea,
-.select {
-  border: 1px solid rgba(16, 24, 40, 0.06);
+.editproductinput,
+.editproducttextarea,
+.editproductselect {
+  border: 1.5px solid rgba(5, 11, 23, 0.06);
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 14px;
@@ -224,19 +232,21 @@
   font-family: inherit;
   outline: none;
 }
-.input:focus,
-.textarea:focus,
-.select:focus {
+.editproductinput:focus,
+.editproducttextarea:focus,
+.editproductselect:focus {
   border-color: #4f46e5;
+  /* border: 1px solid; */
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.08);
 }
-.textarea {
-  resize: vertical;
+.editproducttextarea {
+  width: 55vw;
+  resize: none;
   min-height: 100px;
 }
 
 /* Media - Shopify-like large dashed area + inner box + centered add button */
-.media-dropzone {
+.editproductmedia-dropzone {
   width: 100%;
   border-radius: 12px;
   border: 1px dashed rgba(99, 102, 241, 0.23);
@@ -251,7 +261,7 @@
 }
 
 /* Inner rounded square that holds the icon or image */
-.media-dropzone .media-inner {
+.editproductmedia-dropzone .editproductmedia-inner {
   width: 116px;
   height: 116px;
   border-radius: 12px;
@@ -265,8 +275,8 @@
 }
 
 /* Icon inside the inner square */
-.media-dropzone .media-inner svg,
-.media-dropzone .media-inner img {
+.editproductmedia-dropzone .editproductmedia-inner svg,
+.editproductmedia-dropzone .editproductmedia-inner img {
   width: 56px;
   height: 56px;
   object-fit: contain;
@@ -274,7 +284,7 @@
 }
 
 /* descriptive note under the icon */
-.media-dropzone .media-note {
+.editproductmedia-dropzone .editproductmedia-note {
   font-size: 13px;
   color: #6b7280;
   text-align: center;
@@ -283,7 +293,7 @@
 }
 
 /* centered Add Image button (pill with subtle shadow) */
-.media-dropzone .media-add-btn {
+.editproductmedia-dropzone .editproductmedia-add-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -301,19 +311,19 @@
 }
 
 /* hover/focus */
-.media-dropzone .media-add-btn:hover {
+.editproductmedia-dropzone .editproductmedia-add-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 24px rgba(107,35,122,0.14);
 }
 
 /* When actual thumbnails are present, show them in a centered row */
-.media-dropzone .thumbnails {
+.editproductmedia-dropzone .editproductthumbnails {
   display: flex;
   gap: 12px;
   align-items: center;
   justify-content: center;
 }
-.media-dropzone .thumb {
+.editproductmedia-dropzone .editproductthumb {
   width: 92px;
   height: 92px;
   border-radius: 10px;
@@ -324,28 +334,28 @@
   justify-content: center;
   border: 1px solid rgba(16,24,40,0.04);
 }
-.media-dropzone .thumb img {
+.editproductmedia-dropzone .editproductthumb img {
   width: 84px;
   height: 84px;
   object-fit: cover;
 }
 
 /* Media fallback small rule (legacy) */
-.media-dropzone {
+.editproductmedia-dropzone {
   border: 1px dashed rgba(79, 70, 229, 0.15);
   border-radius: 12px;
   padding: 16px;
   text-align: center;
   background: #fafbff;
 }
-.media-note {
+.editproductmedia-note {
   font-size: 13px;
   color: #9aa3b2;
   margin: 8px 0;
 }
 
 /* small outline button */
-.btn.outline.small {
+.editproductbtn.outline.small {
   background: #fff;
   border: 1px solid rgba(16, 24, 40, 0.08);
   border-radius: 8px;
@@ -355,12 +365,12 @@
   color: #4f46e5;
   font-weight: 600;
 }
-.btn.outline.small:hover {
+.editproductbtn.outline.small:hover {
   background: #f5f6ff;
 }
 
 /* Variation */
-.btn.ghost.small {
+.editproductbtn.ghost.small {
   background: rgba(99, 102, 241, 0.06);
   color: #4f46e5;
   border: none;
@@ -369,27 +379,28 @@
   font-weight: 600;
   cursor: pointer;
 }
-.btn.ghost.small:hover {
+.editproductbtn.ghost.small:hover {
   background: rgba(99, 102, 241, 0.1);
 }
 
 /* Sidebar */
-.sidebar-card {
+.editproductsidebar-card {
   padding: 14px 16px;
 }
-.label {
+.editproductlabel {
   display: block;
   font-size: 13px;
   font-weight: 600;
   color: #6b7280;
-  margin-bottom: 6px;
+  margin-left: 6px;
 }
-.select {
+.editproductselect {
   width: 100%;
 }
 
+
 /* Tag badge */
-.tag {
+.editproducttag {
   background: #f3f0ff;
   padding: 6px 10px;
   border-radius: 8px;
@@ -399,7 +410,7 @@
 }
 
 /* Shipping */
-.shipping-toggle {
+.editproductshipping-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -407,7 +418,7 @@
   color: #4f46e5;
   font-size: 14px;
 }
-.shipping-toggle input {
+.editproductshipping-toggle input {
   width: 16px;
   height: 16px;
 }
@@ -420,7 +431,7 @@
     --icon-box-size: 28px;
   }
 
-  .top-buttons {
+  .editproducttop-buttons {
     gap: 8px;
   }
 }
@@ -431,15 +442,15 @@
     --action-btn-height: 38px;
     --icon-box-size: 26px;
   }
-  .btn .btn-text { font-size: 13px; }
+  .editproductbtn .btneditproduct-text { font-size: 13px; }
 }
 
 /* Default layout responsive adjustments */
 @media (max-width: 1024px) {
-  .add-product-layout {
+  .editproductadd-product-layout {
     flex-direction: column;
   }
-  .add-right {
+  .editproductadd-right {
     width: 100%;
   }
 }

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { FaSearch, FaDownload, FaFilter, FaCalendarAlt } from "react-icons/fa";
+import axios from "axios";
 import Sidebar from "../components/Sidebar";
 import ProductTopbar from "../components/ProductTopbar"; // <-- product-specific topbar
 import ProductTable from "../components/ProductTable";
@@ -19,23 +20,128 @@ export default function ProductManagement() {
 
   // Show add form when URL is /ProductManagement/add
   const [showAddForm, setShowAddForm] = useState(false);
+  const [products, setProducts] = useState([]); // <-- Store fetched products
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+    const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
 
   useEffect(() => {
     setShowAddForm(location.pathname === "/ProductManagement/add");
   }, [location.pathname]);
 
+   // Fetch products from backend
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const res = await axios.get("http://localhost:25186/api/Product");
+        console.log(res,"responseProducts")
+        setProducts(res.data || []);
+      } catch (err) {
+        console.error("Error fetching products:", err);
+        setError("Failed to fetch products. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProducts();
+  }, [refreshKey]); // refetch when a product is added or updated
+
+    const handleExport = () => {
+    const headers = ['productSKU', 'productName', 'productQuantity', 'productStatus', 'basicPricing'];
+    
+    const csvData = filteredProducts.map(order => [
+      order.productSKU || '',
+      order.productName || '',
+      // order.orderDate || '',
+      // order.orderTime || '',
+      order.productQuantity || '',
+      order.productStatus || '',
+      order.basicPricing || '',
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `orders_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   function handleOpenAdd() {
     navigate("/ProductManagement/add");
   }
+
   function handleProductAdded(newProduct) {
-  setRefreshKey(prev => prev + 1);
-  setTimeout(() => {
-    navigate("/ProductManagement");
-  }, 1500);
-}
+    setRefreshKey((prev) => prev + 1);
+    setTimeout(() => {
+      navigate("/ProductManagement");
+    }, 1500);
+  }
+
   function handleCloseAdd() {
     navigate("/ProductManagement");
   }
+
+    // Filter products based on search + tab selection
+  const filteredProducts = products.filter((product) => {
+    const now = new Date();
+    const createdDate = new Date(product.createdAt);
+
+    // Search filters
+    const searchTerm = (globalSearch || rightSearch).toLowerCase();
+    const matchesSearch =
+      !searchTerm ||
+      product.productName?.toLowerCase().includes(searchTerm) ||
+      product.productSKU?.toLowerCase().includes(searchTerm);
+
+    // Tab-based filters
+    if (tab === "published" && product.productStatus !== "Published")
+      return false;
+    if (tab === "lowstock" && product.productQuantity >= 10) return false;
+    if (tab === "draft" && product.productStatus !== "Draft") return false;
+
+    // Date filters
+    const isWithin7Days =
+      (now - createdDate) / (1000 * 60 * 60 * 24) <= 7 && filterStatus === "";
+    const isWithin30Days =
+      (now - createdDate) / (1000 * 60 * 60 * 24) <= 30 && filterStatus === "";
+
+    // Dropdown date filter (Last 7 or 30 days)
+    if (filterStatus === "7days" && !isWithin7Days) return false;
+    if (filterStatus === "30days" && !isWithin30Days) return false;
+
+    // Custom date range (popup)
+    if (filterStartDate && new Date(product.createdAt) < new Date(filterStartDate))
+      return false;
+    if (filterEndDate && new Date(product.createdAt) > new Date(filterEndDate))
+      return false;
+
+    // Status filter from popup
+    if (filterStatus && !["7days", "30days"].includes(filterStatus)) {
+      if (product.productStatus !== filterStatus) return false;
+    }
+
+    // Price filter from popup
+    if (minPrice && product.basicPricing < parseFloat(minPrice)) return false;
+    if (maxPrice && product.basicPricing > parseFloat(maxPrice)) return false;
+
+    return matchesSearch;
+  });
 
   return (
     <div className="dashboard-root">
@@ -66,7 +172,7 @@ export default function ProductManagement() {
                   {/* Export button with icon */}
                   <button
                     className="btn-outline"
-                    onClick={() => alert("Export - implement as needed")}
+                    onClick={handleExport}
                   >
                     <FaDownload style={{ marginRight: "6px" }} /> Export
                   </button>
@@ -151,14 +257,21 @@ export default function ProductManagement() {
                   onProductAdded={handleProductAdded}
                     />
                 </div>
-              ) : (
+             ) : (
                 <div className="product-table-container">
-                  <ProductTable
-                    key={refreshKey}
-                    search={globalSearch}
-                    tab={tab}
-                    rightSearch={rightSearch}
-                  />
+                  {loading ? (
+                    <p className="loading-text">Loading products...</p>
+                  ) : error ? (
+                    <p className="error-text">{error}</p>
+                  ) : (
+                    <ProductTable
+                      key={refreshKey}
+                      products={filteredProducts} // <-- Pass fetched products
+                      search={globalSearch}
+                      tab={tab}
+                      rightSearch={rightSearch}
+                    />
+                  )}
                 </div>
               )}
             </div>
