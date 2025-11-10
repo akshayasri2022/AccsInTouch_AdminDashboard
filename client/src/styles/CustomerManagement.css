@@ -598,7 +598,6 @@ html, body, #root {
   background: #fff;
 }
 
-/* small adjustment to bring tabs and moved filter closer */
 .cm-tabs-row { margin-top: 6px !important; }
 
 @media (max-width: 820px) {
