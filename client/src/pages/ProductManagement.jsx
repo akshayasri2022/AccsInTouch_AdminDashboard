@@ -24,6 +24,12 @@ export default function ProductManagement() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+    const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+
   useEffect(() => {
     setShowAddForm(location.pathname === "/ProductManagement/add");
   }, [location.pathname]);
@@ -34,7 +40,7 @@ export default function ProductManagement() {
       try {
         setLoading(true);
         setError("");
-        const res = await axios.get("https://acc-in-touch-1.onrender.com/api/Product");
+        const res = await axios.get("http://localhost:25186/api/Product");
         console.log(res,"responseProducts")
         setProducts(res.data || []);
       } catch (err) {
@@ -46,6 +52,35 @@ export default function ProductManagement() {
     };
     fetchProducts();
   }, [refreshKey]); // refetch when a product is added or updated
+
+    const handleExport = () => {
+    const headers = ['productSKU', 'productName', 'productQuantity', 'productStatus', 'basicPricing'];
+    
+    const csvData = filteredProducts.map(order => [
+      order.productSKU || '',
+      order.productName || '',
+      // order.orderDate || '',
+      // order.orderTime || '',
+      order.productQuantity || '',
+      order.productStatus || '',
+      order.basicPricing || '',
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `orders_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   function handleOpenAdd() {
     navigate("/ProductManagement/add");
@@ -64,14 +99,47 @@ export default function ProductManagement() {
 
     // Filter products based on search + tab selection
   const filteredProducts = products.filter((product) => {
-    const searchTerm = globalSearch.toLowerCase() || rightSearch.toLowerCase();
-    const matchesSearch =
-      product.name?.toLowerCase().includes(searchTerm) ||
-      product.sku?.toLowerCase().includes(searchTerm);
+    const now = new Date();
+    const createdDate = new Date(product.createdAt);
 
-    if (tab === "published") return product.status === "Published" && matchesSearch;
-    if (tab === "lowstock") return product.stock < 10 && matchesSearch;
-    if (tab === "draft") return product.status === "Draft" && matchesSearch;
+    // Search filters
+    const searchTerm = (globalSearch || rightSearch).toLowerCase();
+    const matchesSearch =
+      !searchTerm ||
+      product.productName?.toLowerCase().includes(searchTerm) ||
+      product.productSKU?.toLowerCase().includes(searchTerm);
+
+    // Tab-based filters
+    if (tab === "published" && product.productStatus !== "Published")
+      return false;
+    if (tab === "lowstock" && product.productQuantity >= 10) return false;
+    if (tab === "draft" && product.productStatus !== "Draft") return false;
+
+    // Date filters
+    const isWithin7Days =
+      (now - createdDate) / (1000 * 60 * 60 * 24) <= 7 && filterStatus === "";
+    const isWithin30Days =
+      (now - createdDate) / (1000 * 60 * 60 * 24) <= 30 && filterStatus === "";
+
+    // Dropdown date filter (Last 7 or 30 days)
+    if (filterStatus === "7days" && !isWithin7Days) return false;
+    if (filterStatus === "30days" && !isWithin30Days) return false;
+
+    // Custom date range (popup)
+    if (filterStartDate && new Date(product.createdAt) < new Date(filterStartDate))
+      return false;
+    if (filterEndDate && new Date(product.createdAt) > new Date(filterEndDate))
+      return false;
+
+    // Status filter from popup
+    if (filterStatus && !["7days", "30days"].includes(filterStatus)) {
+      if (product.productStatus !== filterStatus) return false;
+    }
+
+    // Price filter from popup
+    if (minPrice && product.basicPricing < parseFloat(minPrice)) return false;
+    if (maxPrice && product.basicPricing > parseFloat(maxPrice)) return false;
+
     return matchesSearch;
   });
 
@@ -104,7 +172,7 @@ export default function ProductManagement() {
                   {/* Export button with icon */}
                   <button
                     className="btn-outline"
-                    onClick={() => alert("Export - implement as needed")}
+                    onClick={handleExport}
                   >
                     <FaDownload style={{ marginRight: "6px" }} /> Export
                   </button>

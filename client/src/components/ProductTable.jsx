@@ -115,7 +115,7 @@ const [deleteId, setDeleteId] = useState(null);
 
 const confirmDelete = async () => {
   try {
-    await axios.delete(`https://acc-in-touch-1.onrender.com/api/Product/${deleteId}`);
+    await axios.delete(`http://localhost:25186/api/Product/${deleteId}`);
     setProducts((prev) => prev.filter((p) => p.id !== deleteId));
     toast.success("✅ Product deleted successfully!");
   } catch (err) {
