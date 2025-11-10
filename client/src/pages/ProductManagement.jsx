@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { FaSearch, FaDownload, FaFilter, FaCalendarAlt } from "react-icons/fa";
+import axios from "axios";
 import Sidebar from "../components/Sidebar";
 import ProductTopbar from "../components/ProductTopbar"; // <-- product-specific topbar
 import ProductTable from "../components/ProductTable";
@@ -19,23 +20,60 @@ export default function ProductManagement() {
 
   // Show add form when URL is /ProductManagement/add
   const [showAddForm, setShowAddForm] = useState(false);
+  const [products, setProducts] = useState([]); // <-- Store fetched products
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     setShowAddForm(location.pathname === "/ProductManagement/add");
   }, [location.pathname]);
 
+   // Fetch products from backend
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const res = await axios.get("https://acc-in-touch-1.onrender.com/api/Product");
+        console.log(res,"responseProducts")
+        setProducts(res.data || []);
+      } catch (err) {
+        console.error("Error fetching products:", err);
+        setError("Failed to fetch products. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProducts();
+  }, [refreshKey]); // refetch when a product is added or updated
+
   function handleOpenAdd() {
     navigate("/ProductManagement/add");
   }
+
   function handleProductAdded(newProduct) {
-  setRefreshKey(prev => prev + 1);
-  setTimeout(() => {
-    navigate("/ProductManagement");
-  }, 1500);
-}
+    setRefreshKey((prev) => prev + 1);
+    setTimeout(() => {
+      navigate("/ProductManagement");
+    }, 1500);
+  }
+
   function handleCloseAdd() {
     navigate("/ProductManagement");
   }
+
+    // Filter products based on search + tab selection
+  const filteredProducts = products.filter((product) => {
+    const searchTerm = globalSearch.toLowerCase() || rightSearch.toLowerCase();
+    const matchesSearch =
+      product.name?.toLowerCase().includes(searchTerm) ||
+      product.sku?.toLowerCase().includes(searchTerm);
+
+    if (tab === "published") return product.status === "Published" && matchesSearch;
+    if (tab === "lowstock") return product.stock < 10 && matchesSearch;
+    if (tab === "draft") return product.status === "Draft" && matchesSearch;
+    return matchesSearch;
+  });
 
   return (
     <div className="dashboard-root">
@@ -151,14 +189,21 @@ export default function ProductManagement() {
                   onProductAdded={handleProductAdded}
                     />
                 </div>
-              ) : (
+             ) : (
                 <div className="product-table-container">
-                  <ProductTable
-                    key={refreshKey}
-                    search={globalSearch}
-                    tab={tab}
-                    rightSearch={rightSearch}
-                  />
+                  {loading ? (
+                    <p className="loading-text">Loading products...</p>
+                  ) : error ? (
+                    <p className="error-text">{error}</p>
+                  ) : (
+                    <ProductTable
+                      key={refreshKey}
+                      products={filteredProducts} // <-- Pass fetched products
+                      search={globalSearch}
+                      tab={tab}
+                      rightSearch={rightSearch}
+                    />
+                  )}
                 </div>
               )}
             </div>

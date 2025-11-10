@@ -4,19 +4,33 @@ const uploadFile = require("../../fileUpload/fileupload");
 const bcrypt = require("bcryptjs");
 const Allowed_type = require("../../fileUpload/allow_type");
 
+// const uploadFiles = async (files) => {
+//   const uploadPromises = files.map((file) => uploadFile(file, Allowed_type));
+//   try {
+//     const results = await Promise.all(uploadPromises);
+//     // FIX: Directly return the URL string
+//    const uploadedData = {
+//  image_url: results[0]?.success ? { url: results[0].url } : null, 
+// }; // <-- Now it returns the string (e.g., '/path/to/image.jpg')
+//     return uploadedData;
+//   } catch (error) {
+//     throw error;
+//   }
+// };
 const uploadFiles = async (files) => {
-  const uploadPromises = files.map((file) => uploadFile(file, Allowed_type));
-  try {
-    const results = await Promise.all(uploadPromises);
-    // FIX: Directly return the URL string
-   const uploadedData = {
- image_url: results[0]?.success ? { url: results[0].url } : null, 
-}; // <-- Now it returns the string (e.g., '/path/to/image.jpg')
-    return uploadedData;
-  } catch (error) {
-    throw error;
-  }
+  const uploadPromises = files.map((file) => uploadFile(file, Allowed_type));
+
+  try {
+    const results = await Promise.all(uploadPromises);
+    // ✅ Return JSON format for image_url field
+    return {
+      image_url: { url: results[0]?.url || null },
+    };
+  } catch (error) {
+    throw error;
+  }
 };
+
 
 const createProduct = async (data, files) => {
   try {

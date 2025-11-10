@@ -3,104 +3,157 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import ProductTopbar from "../components/ProductTopbar";
+import axios from "axios";
 import "../styles/AddProductForm.css";
 import "../styles/EditProduct.css";
-
-// Mock products - replace with your real data source or fetch by id
-const MOCK_PRODUCTS = [
-  {
-    id: "1",
-    name: "Elegant Watch",
-    description: "Slim, water-resistant watch with leather strap.",
-    price: "400.00",
-    sku: "302002",
-    barcode: "0984939101123",
-    quantity: "124",
-    category: "Watch",
-    tags: ["Watch", "Gadget"],
-    status: "Published",
-    weight: "0.25",
-    height: "10",
-    length: "10",
-    width: "7",
-    variations: [
-      { type: "Color", value: "Black" },
-      { type: "Color", value: "Gray" },
-    ],
-    // you can put a valid image path here to test thumbnails
-    images: ["/mnt/data/b607bf28-b9c5-4c39-a1f5-9ae753db2a9e.png"],
-  },
-];
 
 export default function EditProduct() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Find product (mock). Replace with fetch(...) if needed.
-  const product = MOCK_PRODUCTS.find((p) => p.id === id) || MOCK_PRODUCTS[0];
-
-  // form state
-  const [form, setForm] = useState({
-    name: "",
-    description: "",
-    price: "",
-    sku: "",
-    barcode: "",
-    quantity: "",
-    category: "",
-    tags: [],
-    status: "Draft",
-    weight: "",
-    height: "",
-    length: "",
-    width: "",
-    variations: [],
-    images: [],
+const [form, setForm] = useState({
+    productName: "",
+    productDescription: "",
+    basicPricing: "",
+    productSKU: "",
+    productBarcode: "",
+    productQuantity: "",
+    productCategory: "",
+    productStatus: "draft",
+    productWeight: "",
+    productHeight: "",
+    productLength: "",
+    productWidth: "",
+    productTags: "",
+    image_url: [],               // <-- matches DB field
+    discountType: "0%",          // UI-only (not sent to server)
   });
 
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Fetch product details by ID
+  // ✅ Fetch product details by ID
   useEffect(() => {
-    if (product) {
+    fetchProduct();
+  }, [id]);
+
+const fetchProduct = async () => {
+    try {
+      const { data } = await axios.get(
+        `http://localhost:25186/api/Product/${id}`   // <-- your local backend
+      );
+
       setForm({
-        name: product.name || "",
-        description: product.description || "",
-        price: product.price || "",
-        sku: product.sku || "",
-        barcode: product.barcode || "",
-        quantity: product.quantity || "",
-        category: product.category || "",
-        tags: product.tags || [],
-        status: product.status || "Draft",
-        weight: product.weight || "",
-        height: product.height || "",
-        length: product.length || "",
-        width: product.width || "",
-        variations: product.variations || [],
-        images: product.images || [],
+        productName: data.productName || "",
+        productDescription: data.productDescription || "",
+        basicPricing: data.basicPricing || "",
+        productSKU: data.productSKU || "",
+        productBarcode: data.productBarcode || "",
+        productQuantity: data.productQuantity || "",
+        productCategory: data.productCategory || "",
+        productStatus: data.productStatus || "draft",
+        productWeight: data.productWeight || "",
+        productHeight: data.productHeight || "",
+        productLength: data.productLength || "",
+        productWidth: data.productWidth || "",
+        productTags: data.productTags || "",
+        image_url: Array.isArray(data.image_url) ? data.image_url : [],
+        discountType: "0%",               // default – will be overwritten if you store it
       });
+    } catch (err) {
+      console.error("Error fetching product:", err);
+      alert("Failed to load product. Check console.");
+    } finally {
+      setLoading(false);
     }
-  }, [product]);
+  };
 
+  // handle field change
   function updateField(key, value) {
-    setForm((s) => ({ ...s, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function handleSave(e) {
-    if (e && e.preventDefault) e.preventDefault();
-    // TODO: call API to save changes
-    alert("Saved (mock). Replace with API call.");
-    navigate("/ProductManagement");
-  }
+const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    console.log("Save button clicked! ID:", id);
+
+    // Build payload **exactly** as the backend expects
+    const payload = {
+      productName: form.productName,
+      productDescription: form.productDescription,
+      basicPricing: Number(form.basicPricing) || 0,
+      productSKU: form.productSKU,
+      productBarcode: form.productBarcode,
+      productQuantity: Number(form.productQuantity) || 0,
+      productCategory: form.productCategory,
+      productStatus: form.productStatus,
+      productWeight: Number(form.productWeight) || 0,
+      productHeight: Number(form.productHeight) || 0,
+      productLength: Number(form.productLength) || 0,
+      productWidth: Number(form.productWidth) || 0,
+      productTags: form.productTags,
+      image_url: form.image_url,
+      // discountType is **not** sent – it is only UI
+    };
+
+    console.log("Sending payload:", payload);
+
+    try {
+      const { data, status } = await axios.put(
+        `http://localhost:25186/api/Product/${id}`,
+        payload,
+        {
+          headers: { "Content-Type": "application/json" },
+          timeout: 12_000,
+        }
+      );
+
+      console.log("Update response:", { status, data });
+
+      if (status === 200 || status === 201) {
+        alert("Product updated successfully!");
+        navigate("/ProductManagement");
+      } else {
+        throw new Error(`Unexpected status ${status}`);
+      }
+    } catch (err) {
+      console.error("Update error:", err);
+      if (err.code === "ERR_NETWORK") {
+        alert("Network error – is the backend running on http://localhost:25186 ?");
+      } else if (err.response) {
+        const msg = err.response.data?.message || err.response.statusText;
+        alert(`Update failed (${err.response.status}): ${msg}`);
+      } else {
+        alert("Failed to update product. See console.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
 
   function handleCancel() {
     navigate("/ProductManagement");
   }
 
-  function handleGoToProduct() {
-    navigate("/ProductManagement");
+ if (loading) {
+    return (
+      <div className="dashboard-root">
+        <Sidebar />
+        <div className="dashboard-main">
+          <ProductTopbar />
+          <div className="dashboard-content">
+            <p style={{ padding: 40 }}>Loading product details...</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // Replace with a local import if you'd rather (import placeholder from "../assets/placeholder.png")
-  const placeholderUrl = "https://cdn-icons-png.flaticon.com/512/7486/7486744.png";
+  const placeholderUrl =
+    "https://cdn-icons-png.flaticon.com/512/7486/7486744.png";
 
   // onError handler for images - swap to placeholder if original fails
   function handleImageError(e) {
@@ -127,7 +180,12 @@ export default function EditProduct() {
         strokeLinejoin="round"
       />
       <circle cx="12" cy="14" r="3" stroke="#6b7280" strokeWidth="1.2" />
-      <path d="M17 7h.01" stroke="#6b7280" strokeWidth="1.6" strokeLinecap="round" />
+      <path
+        d="M17 7h.01"
+        stroke="#6b7280"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
     </svg>
   );
 
@@ -138,12 +196,15 @@ export default function EditProduct() {
         <ProductTopbar />
 
         <div className="dashboard-content">
-          <div className="add-product-container full-page">
+          <div className="editproductadd-product-container full-page">
             {/* TOP HEADER */}
-            <div className="edit-top-header" style={{ marginBottom: 12 }}>
-              <div className="edit-top-info">
-                <h1
-                  className="edit-top-title"
+            <div
+              className="editproductedit-top-header"
+              style={{ marginBottom: 12 }}
+            >
+              <div className="editproductedit-top-info">
+                <h2
+                  className="editproductedit-top-title"
                   style={{
                     margin: 0,
                     fontSize: 20,
@@ -152,10 +213,10 @@ export default function EditProduct() {
                     lineHeight: 1.1,
                   }}
                 >
-                  {form.name || ""}
-                </h1>
+                  {form.productName}
+                </h2>
                 <p
-                  className="edit-top-desc"
+                  className="editproductedit-top-desc"
                   style={{
                     margin: "6px 0 0 0",
                     fontSize: 13,
@@ -166,46 +227,39 @@ export default function EditProduct() {
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {form.description || ""}
+                  {form.productDescription}
                 </p>
               </div>
             </div>
 
             {/* top breadcrumb + actions */}
-            <div className="add-product-top top-v2">
-              <div className="breadcrumb">
+            <div className="editproductadd-product-top top-v2">
+              <div className="editproductbreadcrumb">
                 <span
-                  className="crumb-link"
+                  className="editproductcrumb-link"
                   style={{
                     color: "#4f46e5",
                     cursor: "pointer",
                     textDecoration: "underline",
                   }}
-                  onClick={handleGoToProduct}
+                  onClick={() => navigate("/ProductManagement")}
                 >
                   Product
                 </span>
-                <span className="crumb-sep">›</span>
-                <span className="crumb-current">Edit Product</span>
+                <span className="editproductcrumb-sep">›</span>
+                <span className="editproductcrumb-current">Edit Product</span>
               </div>
 
-              <div className="top-buttons">
+              <div className="editproducttop-buttons">
                 {/* Cancel */}
                 <button
                   type="button"
-                  className="btn cancel outlined"
+                  className="editproductbtn cancel outlined"
                   onClick={handleCancel}
-                  aria-label="Cancel"
+                  disabled={saving}
                 >
-                  <span className="icon-circle" aria-hidden="true">
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      aria-hidden="true"
-                    >
+                  <span className="editproducticon-circle">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
                       <path
                         d="M18 6L6 18M6 6L18 18"
                         stroke="#6b7280"
@@ -215,71 +269,79 @@ export default function EditProduct() {
                       />
                     </svg>
                   </span>
-                  <span className="btn-text">Cancel</span>
+                  <span className="editproductbtn-text">Cancel</span>
                 </button>
 
                 {/* Save */}
                 <button
-                  type="button"
-                  className="btn add-product filled"
+                  type="submit"
+                  className="editproductbtn add-product filled"
                   onClick={handleSave}
+                  disabled={saving}
                 >
-                  <span className="icon-box" aria-hidden="true">
-                    <svg
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M7 10a5 5 0 0 1 10 0v2"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.6"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        opacity="1"
-                      />
-                      <rect
-                        x="4"
-                        y="10"
-                        width="16"
-                        height="10"
-                        rx="2"
-                        ry="2"
-                        stroke="none"
-                        fill="currentColor"
-                        opacity="0.06"
-                      />
-                      <circle cx="12" cy="15" r="1.2" fill="currentColor" />
-                    </svg>
+                  <span className="icon-box">
+                    {saving ? (
+                      <span style={{ fontSize: 12 }}>Saving...</span>
+                    ) : (
+                      <svg viewBox="0 0 24 24">
+                        <path
+                          d="M7 10a5 5 0 0 1 10 0v2"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <rect
+                          x="4"
+                          y="10"
+                          width="16"
+                          height="10"
+                          rx="2"
+                          ry="2"
+                          stroke="none"
+                          fill="currentColor"
+                          opacity="0.06"
+                        />
+                        <circle cx="12" cy="15" r="1.2" fill="currentColor" />
+                      </svg>
+                    )}
                   </span>
-                  <span className="btn-text">Save Product</span>
+                  <span className="editproductbtn-text">
+                    {saving ? "Saving..." : "Save Product"}
+                  </span>
                 </button>
               </div>
             </div>
 
             {/* Main content 2-column layout (left form, right sidebar) */}
-            <div className="add-product-layout">
-              <div className="add-left">
+            <div className="editproductadd-product-layout">
+              <div className="editproductadd-left">
                 {/* General Information */}
-                <section className="card">
-                  <h3 className="card-title">General Information</h3>
-                  <div className="form-row">
+                <section className="editproductcard">
+                  <h3 className="editproductcard-title">General Information</h3>
+                  <div className="editproductform-row">
+                    <lable className="editproductlabel">Product Name</lable>
                     <input
-                      className="input"
+                      className="editproductinput"
                       placeholder="Product Name"
-                      value={form.name}
-                      onChange={(e) => updateField("name", e.target.value)}
+                      value={form.productName}
+                      onChange={(e) =>
+                        updateField("productName", e.target.value)
+                      }
                     />
                   </div>
 
-                  <div className="form-row">
+                  <div className="editproductform-row">
+                    <lable className="editproductlabel">
+                      Product Description
+                    </lable>
                     <textarea
-                      className="textarea"
+                      className="editproducttextarea"
                       placeholder="Type product description here…"
-                      value={form.description}
+                      value={form.productDescription}
                       onChange={(e) =>
-                        updateField("description", e.target.value)
+                        updateField("productDescription", e.target.value)
                       }
                       rows={5}
                     />
@@ -287,19 +349,19 @@ export default function EditProduct() {
                 </section>
 
                 {/* Media (updated: default placeholder + centered Add Image) */}
-                <section className="card">
-                  <h3 className="card-title">Media</h3>
+                <section className="editproductcard">
+                  <h3 className="editproductcard-title">Media</h3>
 
                   <div
-                    className="media-dropzone"
+                    className="editproductmedia-dropzone"
                     role="region"
                     aria-label="Product media"
                   >
                     {/* thumbnails (if present) */}
                     {form.images && form.images.length > 0 ? (
-                      <div className="thumbnails">
+                      <div className="editproductthumbnails">
                         {form.images.map((src, i) => (
-                          <div className="thumb" key={i}>
+                          <div className="editproductthumb" key={i}>
                             <img
                               src={src}
                               alt={`product-${i}`}
@@ -309,19 +371,22 @@ export default function EditProduct() {
                         ))}
                       </div>
                     ) : (
-                      <div className="media-inner" aria-hidden="true">
+                      <div
+                        className="editproductmedia-inner"
+                        aria-hidden="true"
+                      >
                         {/* show an inline SVG placeholder when no images */}
                         <PlaceholderSVG />
                       </div>
                     )}
 
-                    <div className="media-note">
+                    <div className="editproductmedia-note">
                       Drag and drop image here, or click add image
                     </div>
 
                     <button
-                      type="button"
-                      className="media-add-btn"
+                      type="editproductbutton"
+                      className="editproductmedia-add-btn"
                       onClick={() => alert("Add image - implement file picker")}
                     >
                       Add Image
@@ -330,190 +395,237 @@ export default function EditProduct() {
                 </section>
 
                 {/* Pricing */}
-                <section className="card">
-                  <h3 className="card-title">Pricing</h3>
-                  <div className="form-row">
-                    <input
-                      className="input"
-                      placeholder="$ Type base price here…"
-                      value={form.price}
-                      onChange={(e) => updateField("price", e.target.value)}
-                    />
-                  </div>
-
-                  <div className="form-row two">
-                    <select className="select">
-                      <option>No Discount</option>
-                      <option>Percentage</option>
-                    </select>
-                    <input
-                      className="input"
-                      placeholder="Discount Percentage (%)"
-                    />
-                  </div>
-
-                  <div className="form-row two">
-                    <select className="select">
-                      <option>Tax Free</option>
-                      <option>Standard</option>
-                    </select>
-                    <input className="input" placeholder="VAT Amount (%)" />
-                  </div>
-                </section>
-
-                {/* Inventory */}
-                <section className="card">
-                  <h3 className="card-title">Inventory</h3>
-                  <div className="form-row three">
-                    <input
-                      className="input"
-                      placeholder="SKU"
-                      value={form.sku}
-                      onChange={(e) => updateField("sku", e.target.value)}
-                    />
-                    <input
-                      className="input"
-                      placeholder="Barcode"
-                      value={form.barcode}
-                      onChange={(e) => updateField("barcode", e.target.value)}
-                    />
-                    <input
-                      className="input"
-                      placeholder="Quantity"
-                      value={form.quantity}
-                      onChange={(e) => updateField("quantity", e.target.value)}
-                    />
-                  </div>
-                </section>
-
-                {/* Variation */}
-                <section className="card">
-                  <h3 className="card-title">Variation</h3>
-                  {form.variations.map((v, idx) => (
-                    <div className="form-row two" key={idx}>
-                      <select
-                        className="select"
-                        value={v.type}
-                        onChange={(e) => {
-                          const copy = [...form.variations];
-                          copy[idx].type = e.target.value;
-                          updateField("variations", copy);
-                        }}
-                      >
-                        <option>Color</option>
-                        <option>Size</option>
-                      </select>
+                <div className="editproductcard">
+                  <h3 className="editproductcard-title">Pricing</h3>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "row",
+                      gap: "3vw",
+                    }}
+                  >
+                    <div className="editproductform-row">
+                      <lable className="editproductlabel">Bacis Pricing</lable>
                       <input
-                        className="input"
-                        placeholder="Variation…"
-                        value={v.value}
-                        onChange={(e) => {
-                          const copy = [...form.variations];
-                          copy[idx].value = e.target.value;
-                          updateField("variations", copy);
-                        }}
+                        className="editproductinput"
+                        placeholder="$ Type base price here…"
+                        value={form.basicPricing}
+                        onChange={(e) =>
+                          updateField("basicPricing", e.target.value)
+                        }
                       />
                     </div>
-                  ))}
-                  <button
-                    className="btn ghost small"
-                    style={{ marginTop: 12 }}
-                    onClick={() =>
-                      updateField("variations", [
-                        ...form.variations,
-                        { type: "Color", value: "" },
-                      ])
-                    }
-                  >
-                    + Add Variant
-                  </button>
+                    <div className="editproductform-row two">
+                      <lable className="editproductlabel">Discount</lable>
+                      <select
+                        className="editproductselect"
+                        value={form.discountType}
+                        onChange={(e) =>
+                          updateField("discountType", e.target.value)
+                        }
+                      >
+                        <option>Select Discount</option>
+                        <option value="0%">0%</option>
+                        <option value="10%">10%</option>
+                        <option value="20%">20%</option>
+                        <option value="30%">30%</option>
+                        <option value="40%">40%</option>
+                        <option value="50%">50%</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Inventory */}
+                <section className="editproductcard">
+                  <h3 className="editproductcard-title">Inventory</h3>
+                  <div className="editproductform-row three">
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        width: "25vw",
+                      }}
+                    >
+                      <lable className="editproductlabel">Product SKU</lable>
+                      <input
+                        className="editproductinput"
+                        placeholder="SKU"
+                        value={form.productSKU}
+                        // onChange={(e) => updateField("productSKU", e.target.value)}
+                        readOnly
+                      />
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        width: "25vw",
+                      }}
+                    >
+                      <lable className="editproductlabel">
+                        Product Barcode
+                      </lable>
+
+                      <input
+                        className="editproductinput"
+                        placeholder="Barcode"
+                        value={form.productBarcode}
+                        readOnly
+                        // onChange={(e) => updateField("productBarcode", e.target.value)}
+                      />
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        width: "25vw",
+                      }}
+                    >
+                      <lable className="editproductlabel">
+                        Product Quantity
+                      </lable>
+                      <input
+                        className="editproductinput"
+                        placeholder="Quantity"
+                        value={form.productQuantity}
+                        onChange={(e) =>
+                          updateField("productQuantity", e.target.value)
+                        }
+                      />
+                    </div>
+                  </div>
                 </section>
 
                 {/* Shipping */}
-                <section className="card">
-                  <h3 className="card-title">Shipping</h3>
-                  <div className="shipping-toggle">
+                <section className="editproductcard">
+                  <h3 className="editproductcard-title">Shipping</h3>
+                  <div className="editproductshipping-toggle">
                     <input type="checkbox" id="physical" defaultChecked />
                     <label htmlFor="physical">This is a physical product</label>
                   </div>
 
-                  <div className="form-row four" style={{ marginTop: 12 }}>
-                    <input
-                      className="input"
-                      placeholder="Weight"
-                      value={form.weight}
-                      onChange={(e) => updateField("weight", e.target.value)}
-                    />
-                    <input
-                      className="input"
-                      placeholder="Height (cm)"
-                      value={form.height}
-                      onChange={(e) => updateField("height", e.target.value)}
-                    />
-                    <input
-                      className="input"
-                      placeholder="Length (cm)"
-                      value={form.length}
-                      onChange={(e) => updateField("length", e.target.value)}
-                    />
-                    <input
-                      className="input"
-                      placeholder="Width (cm)"
-                      value={form.width}
-                      onChange={(e) => updateField("width", e.target.value)}
-                    />
+                  <div
+                    className="editproductform-row four"
+                    style={{ marginTop: 12 }}
+                  >
+                    <div style={{ width: "13vw" }}>
+                      <input
+                        className="editproductinput"
+                        placeholder="Weight"
+                        value={form.productWeight}
+                        onChange={(e) =>
+                          updateField("productWeight", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div style={{ width: "13vw" }}>
+                      <input
+                        className="editproductinput"
+                        placeholder="Height (cm)"
+                        value={form.productHeight}
+                        onChange={(e) =>
+                          updateField("productHeight", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div style={{ width: "13vw" }}>
+                      <input
+                        className="editproductinput"
+                        placeholder="Length (cm)"
+                        value={form.productLength}
+                        onChange={(e) =>
+                          updateField("productLength", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div style={{ width: "13vw" }}>
+                      <input
+                        className="editproductinput"
+                        placeholder="Width (cm)"
+                        value={form.productWidth}
+                        onChange={(e) =>
+                          updateField("productWidth", e.target.value)
+                        }
+                      />
+                    </div>
                   </div>
                 </section>
               </div>
 
               {/* Right sidebar */}
-              <div className="add-right">
-                <section className="card sidebar-card">
-                  <h3 className="card-title">Category</h3>
-                  <label className="label">Product Category</label>
-                  <select
-                    className="select"
-                    value={form.category}
-                    onChange={(e) => updateField("category", e.target.value)}
-                  >
-                    <option>Watch</option>
-                    <option>Audio</option>
-                    <option>Clothing</option>
-                  </select>
+              <div className="editproductadd-right">
+                <div>
+                  <section className="editproductcard sidebar-card">
+                    <h3 className="editproductcard-title">Category</h3>
+                    <label className="editproductlabel">Product Category</label>
+                    <select
+                      className="editproductselect"
+                      value={form.productCategory}
+                      onChange={(e) =>
+                        updateField("productCategory", e.target.value)
+                      }
+                    >
+                      <option>Earrings</option>
+                      <option value="scrunchies">Scrunchies</option>
+                      <option value="claws">Claws</option>
+                      <option value="hairBows">Hair Bows</option>
+                    </select>
 
-                  <label className="label" style={{ marginTop: 12 }}>
-                    Product Tags
-                  </label>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {(form.tags || []).map((t, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          background: "#f3f0ff",
-                          padding: "6px 8px",
-                          borderRadius: 8,
-                          fontWeight: 700,
-                          color: "#6d28d9",
-                        }}
-                      >
-                        {t}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                <section className="card sidebar-card" style={{ marginTop: 12 }}>
-                  <h3 className="card-title">Status</h3>
-                  <label className="label">Product Status</label>
-                  <select
-                    className="select"
-                    value={form.status}
-                    onChange={(e) => updateField("status", e.target.value)}
+                    <label
+                      className="editproductlabel"
+                      style={{ marginTop: 12 }}
+                    >
+                      Product Tags
+                    </label>
+                    <input
+                      className="editproductinput"
+                      placeholder="Product Tgas"
+                      value={form.productTags}
+                      onChange={(e) =>
+                        updateField("productTags", e.target.value)
+                      }
+                    />
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {(form.tags || []).map((t, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            background: "#f3f0ff",
+                            padding: "6px 8px",
+                            borderRadius: 8,
+                            fontWeight: 700,
+                            color: "#6d28d9",
+                          }}
+                        >
+                          {t}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+                <div>
+                  <section
+                    className="editproductcard sidebar-card"
+                    style={{ marginTop: 12 }}
                   >
-                    <option>Draft</option>
-                    <option>Published</option>
-                  </select>
-                </section>
+                    <h3 className="editproductcard-title">Status</h3>
+                    <label className="editproductlabel">Product Status</label>
+                    <select
+                      className="editproductselect"
+                      value={form.productStatus}
+                      onChange={(e) =>
+                        updateField("productStatus", e.target.value)
+                      }
+                    >
+                      <option value="inStock">In Stock</option>
+                      <option value="lowStack">Low Stock</option>
+                      <option value="outOfStock">Out of Stock</option>
+                      <option value="disscontinued">Discontinued</option>
+                      <option value="draft">Draft</option>
+                    </select>
+                  </section>
+                </div>
               </div>
             </div>
           </div>

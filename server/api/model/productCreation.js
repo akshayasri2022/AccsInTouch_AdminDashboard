@@ -92,6 +92,11 @@ discountType: {
     type: DataTypes.JSON,
     allowNull: true,
   },
+  isPhysical:{
+    type:DataTypes.BOOLEAN,
+    allowNull:false,
+    defaultValue:false
+  }
 });
 
 module.exports = ProductCreation;
