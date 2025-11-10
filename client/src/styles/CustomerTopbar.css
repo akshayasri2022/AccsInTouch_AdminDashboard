@@ -58,13 +58,14 @@
   border: none;
   box-shadow: none;
   font-weight: 600;
-  color: var(--accent);
-  cursor: default;           /* not clickable */
+  color: black;              /* changed to black */
+  cursor: default;            /* not clickable */
   white-space: nowrap;
   transition: none;
-  font-size: 14px;
+  font-size: 18px;
   line-height: 1;
 }
+
 
 /* Remove hover transform — it's just text so no hover effect */
 .customer-topbar .shop-selector:hover {
