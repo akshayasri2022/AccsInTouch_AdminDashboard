@@ -38,8 +38,8 @@ const getAllProduct = async (req, res) => {
 
 const getProductById = async (req, res) => {
   try {
-    const ProductId = req.params.id;
-    const Product = await ProductService.getProductById(ProductId);
+    const id = req.params.id;
+    const Product = await ProductService.getProductById(id);
 
     if (Product) {
       res.status(200).json(Product);
@@ -55,7 +55,7 @@ const getProductById = async (req, res) => {
 
 const updateProduct = async (req, res) => {
   try {
-    const ProductId = req.params.id;
+    const id = req.params.id;
     const payload = await parseRequestFiles(req);
 
     // Flatten fields
@@ -72,7 +72,7 @@ const updateProduct = async (req, res) => {
     req.files = payload.files;
 
     const updatedProduct = await ProductService.updateProduct(
-      ProductId,
+      id,
       req.body,
       req.files
     );
@@ -85,10 +85,10 @@ const updateProduct = async (req, res) => {
 
 const deleteProduct = async (req, res) => {
   try {
-    const ProductId = req.params.id;
-    const deleteProductId = await ProductService.deleteProduct(ProductId);
-    if (deleteProductId) {
-      res.status(204).json(deleteProductId);
+    const id = req.params.id;
+    const deleteid = await ProductService.deleteProduct(id);
+    if (deleteid) {
+      res.status(204).json(deleteid);
     } else {
       res.status(404).json({ message: "Product id not found" });
     }
