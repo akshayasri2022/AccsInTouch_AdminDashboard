@@ -1,7 +1,62 @@
+// src/pages/OrderManagement.jsx - FIXED WITH PASCALCASE ENUMS
+
 import React, { useState, useEffect } from 'react';
-import { Search, Download, Filter, Edit2, Eye, Trash2, X, Bell, ChevronDown, ChevronUp, Menu, Package, Users, Settings, LogOut, ShoppingBag, BarChart3 } from 'lucide-react';
+import { Search, Download, Filter, Edit2, Eye, Trash2, X, Bell, ChevronDown, ChevronUp, Plus } from 'lucide-react';
 import './OrderManagement.css';
 import Sidebar from '../../components/Sidebar';
+import axios from 'axios';
+
+// ✅ ENUM TRANSFORMATION HELPERS - Database uses PascalCase
+const transformToDbEnum = (displayValue, type) => {
+  const mappings = {
+    paymentType: {
+      'Cash on Delivery': 'CashOnDelivery',
+      'UPI': 'UPI',
+      'Credit Card': 'CreditCard',
+      'Debit Card': 'DebitCard',
+      'Net Banking': 'NetBanking'
+    },
+    orderType: {
+      'Marketplace Order': 'MarketplaceOrder',
+      'Website Order': 'WebsiteOrder',
+      'In-Store Purchase': 'InStorePurchase'
+    },
+    orderStatus: {
+      'Pending': 'Pending',
+      'Confirmed': 'Confirmed',
+      'Packed': 'Packed',
+      'Shipped': 'Shipped',
+      'Out for Delivery': 'OutForDelivery',
+      'Delivered': 'Delivered',
+      'Completed': 'Completed'
+    }
+  };
+  return mappings[type]?.[displayValue] || displayValue;
+};
+
+// Display database values in UI
+const displayEnumValue = (dbValue) => {
+  if (!dbValue) return dbValue;
+  const reverseMap = {
+    'CashOnDelivery': 'Cash on Delivery',
+    'UPI': 'UPI',
+    'CreditCard': 'Credit Card',
+    'DebitCard': 'Debit Card',
+    'NetBanking': 'Net Banking',
+    'MarketplaceOrder': 'Marketplace Order',
+    'WebsiteOrder': 'Website Order',
+    'InStorePurchase': 'In-Store Purchase',
+    'Pending': 'Pending',
+    'Confirmed': 'Confirmed',
+    'Packed': 'Packed',
+    'Shipped': 'Shipped',
+    'OutForDelivery': 'Out for Delivery',
+    'Delivered': 'Delivered',
+    'Completed': 'Completed'
+  };
+  return reverseMap[dbValue] || dbValue;
+};
+
 const OrderManagement = () => {
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
@@ -23,119 +78,117 @@ const OrderManagement = () => {
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [newCustomerDetails, setNewCustomerDetails] = useState({ name: '', email: '', phone: '', address: '' });
   const [searchedTerm, setSearchedTerm] = useState('');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [popup, setPopup] = useState({ show: false, type: '', message: '' });
 
-  const sampleProducts = [
-    { name: 'Organza Bow', variants: 3, price: 121 },
-    { name: 'Purple Claw Clip', variants: 2, price: 950 },
-    { name: 'Hair Bow Classic', variants: 3, price: 325 },
-    { name: 'Gold Bow', variants: 3, price: 348 },
-    { name: 'Red Bow', variants: 4, price: 607 },
-    { name: 'Velvet Scrunchie', variants: 3, price: 234 },
-    { name: 'Diamond Earring', variants: 1, price: 710 },
-    { name: 'White Claw Clip', variants: 3, price: 400 },
-    { name: 'Fluffy Scrunchie', variants: 2, price: 812 },
-    { name: 'Pearl Earring', variants: 3, price: 123 },
-  ];
+  const [products, setProducts] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [ordersData, setOrdersData] = useState([]);
+  const [tempCustomerId, setTempCustomerId] = useState(null);
 
-  const [ordersData, setOrdersData] = useState([
-    {
-      id: 'SO1002',
-      product: 'Organza Bow',
-      variants: 3,
-      date: '28 Oct 2025',
-      customer: 'John Bushnell',
-      total: 121.00,
-      payment: 'Mastercard',
-      status: 'Delivered',
-      email: 'john@example.com',
-      phone: '+1234567890',
-      address: '123 Main St, New York, NY',
-      orderType: 'Website Order',
-      orderNote: '',
-      time: '2:00 PM'
-    },
-    {
-      id: 'SO1011',
-      product: 'Purple Claw Clip',
-      variants: 2,
-      date: '24 Oct 2025',
-      customer: 'Linda Blair',
-      total: 950.00,
-      payment: 'Visa',
-      status: 'Shipped',
-      email: 'linda@example.com',
-      phone: '+1234567891',
-      address: '456 Oak Ave, Los Angeles, CA',
-      orderType: 'Marketplace Order',
-      orderNote: 'Fragile item',
-      time: '3:00 PM'
-    },
-    {
-      id: 'SO1015',
-      product: 'Gold Bow',
-      variants: 3,
-      date: '28 Aug 2025',
-      customer: 'Mike Ross',
-      total: 348.00,
-      payment: 'UPI',
-      status: 'Out for Delivery',
-      email: 'mike@example.com',
-      phone: '+1234567892',
-      address: '789 Pine Rd, Chicago, IL',
-      orderType: 'In-Store Purchase',
-      orderNote: 'Gift wrap',
-      time: '11:00 AM'
-    },
-    {
-      id: 'SO1020',
-      product: 'Red Bow',
-      variants: 4,
-      date: '2 Oct 2025',
-      customer: 'Sarah Connor',
-      total: 607.00,
-      payment: 'Cash on Delivery (COD)',
-      status: 'Cancelled',
-      email: 'sarah@example.com',
-      phone: '+1234567893',
-      address: '101 Elm St, Boston, MA',
-      orderType: 'Website Order',
-      orderNote: 'Customer cancelled',
-      time: '4:30 PM'
-    },
-    {
-      id: 'SO1025',
-      product: 'Velvet Scrunchie',
-      variants: 3,
-      date: '10 Dec 2022',
-      customer: 'Tom Hardy',
-      total: 234.00,
-      payment: 'Net Banking',
-      status: 'Completed',
-      email: 'tom@example.com',
-      phone: '+1234567894',
-      address: '202 Maple Dr, Seattle, WA',
-      orderType: 'Marketplace Order',
-      orderNote: '',
-      time: '1:00 PM'
-    }
-  ]);
+  const API_URL = 'http://localhost:25186/api';
 
   const [newOrder, setNewOrder] = useState({
-    product: '',
-    variants: 0,
-    customer: '',
-    total: '',
-    payment: '',
-    status: '',
+    custID: '',
+    prodID: '',
+    paymentType: '',
+    orderStatus: '',
     orderType: '',
-    orderNote: '',
-    date: '',
-    time: ''
+    orderDate: '',
+    orderTime: ''
   });
 
-  const filteredProducts = sampleProducts.filter(p =>
-    p.name.toLowerCase().includes(searchedTerm.toLowerCase())
+  const showPopup = (type, message) => {
+    setPopup({ show: true, type, message });
+    setTimeout(() => {
+      setPopup({ show: false, type: '', message: '' });
+    }, 3000);
+  };
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return {
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` })
+      }
+    };
+  };
+
+  const fetchProducts = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/Product`, getAuthHeaders());
+      setProducts(response.data);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      showPopup('error', 'Failed to fetch products');
+    }
+  };
+
+  const fetchCustomers = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/Customer`, getAuthHeaders());
+      setCustomers(response.data);
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+      showPopup('error', 'Failed to fetch customers');
+    }
+  };
+
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/Order`, getAuthHeaders());
+      setOrdersData(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      showPopup('error', 'Failed to fetch orders');
+      setOrdersData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createCustomer = async () => {
+    try {
+      if (!newCustomerDetails.name || !newCustomerDetails.email || !newCustomerDetails.phone || !newCustomerDetails.address) {
+        showPopup('error', 'Please fill all customer details');
+        return;
+      }
+
+      setLoading(true);
+      const formData = new FormData();
+      formData.append('customerName', newCustomerDetails.name);
+      formData.append('customerEmail', newCustomerDetails.email);
+      formData.append('phoneNumber', newCustomerDetails.phone);
+      formData.append('customerAddress', newCustomerDetails.address);
+
+      const response = await axios.post(`${API_URL}/Customer`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          ...getAuthHeaders().headers
+        },
+      });
+
+      setTempCustomerId(response.data.newCustomer?.id || response.data.id);
+      showPopup('success', 'Customer added successfully!');
+      await fetchCustomers();
+      
+    } catch (error) {
+      console.error('Error creating customer:', error);
+      showPopup('error', 'Failed to create customer: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    fetchProducts();
+    fetchCustomers();
+  }, []);
+
+  const filteredProducts = products.filter(p =>
+    p.productName?.toLowerCase().includes(searchedTerm.toLowerCase())
   );
 
   const toggleOrderSelection = (orderId) => {
@@ -147,7 +200,7 @@ const OrderManagement = () => {
   };
 
   const toggleSelectAll = () => {
-    if (selectedOrders.length === filteredOrders.length) {
+    if (selectedOrders.length === filteredOrders.length && filteredOrders.length > 0) {
       setSelectedOrders([]);
     } else {
       setSelectedOrders(filteredOrders.map(order => order.id));
@@ -155,7 +208,7 @@ const OrderManagement = () => {
   };
 
   const getStatusClass = (status) => {
-    const lower = status.toLowerCase();
+    const lower = status?.toLowerCase();
     if (['delivered', 'completed'].includes(lower)) return 'status-delivered';
     if (lower === 'cancelled') return 'status-cancelled';
     return 'status-processing';
@@ -170,26 +223,26 @@ const OrderManagement = () => {
   };
 
   const filteredOrders = ordersData.filter(order => {
-    const matchesTab = activeTab === 'all' || order.status.toLowerCase() === activeTab.replace(/-/g, ' ');
+    const matchesTab = activeTab === 'all' || order.orderStatus?.toLowerCase() === activeTab.replace(/-/g, '').toLowerCase();
     const matchesSearch = !searchQuery ||
-      order.product.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.payment.toLowerCase().includes(searchQuery.toLowerCase());
+      order.OrderedProduct?.productName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.orderCustomer?.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.orderID?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.paymentType?.toLowerCase().includes(searchQuery.toLowerCase());
 
     let matchesDate = true;
     if (dateFilter.start || dateFilter.end) {
-      const orderDate = new Date(order.date);
+      const orderDate = new Date(order.orderDate);
       if (dateFilter.start) matchesDate = matchesDate && orderDate >= new Date(dateFilter.start);
       if (dateFilter.end) matchesDate = matchesDate && orderDate <= new Date(dateFilter.end);
     }
 
     let matchesPrice = true;
-    if (priceFilter.min) matchesPrice = matchesPrice && order.total >= parseFloat(priceFilter.min);
-    if (priceFilter.max) matchesPrice = matchesPrice && order.total <= parseFloat(priceFilter.max);
+    if (priceFilter.min) matchesPrice = matchesPrice && order.OrderedProduct?.price >= parseFloat(priceFilter.min);
+    if (priceFilter.max) matchesPrice = matchesPrice && order.OrderedProduct?.price <= parseFloat(priceFilter.max);
 
-    const matchesPayment = paymentFilter.length === 0 || paymentFilter.includes(order.payment);
-    const matchesStatus = statusFilter.length === 0 || statusFilter.includes(order.status);
+    const matchesPayment = paymentFilter.length === 0 || paymentFilter.some(pf => transformToDbEnum(pf, 'paymentType') === order.paymentType);
+    const matchesStatus = statusFilter.length === 0 || statusFilter.some(sf => transformToDbEnum(sf, 'orderStatus') === order.orderStatus);
 
     return matchesTab && matchesSearch && matchesDate && matchesPrice && matchesPayment && matchesStatus;
   }).sort((a, b) => {
@@ -197,8 +250,8 @@ const OrderManagement = () => {
     let aVal = a[sortConfig.key];
     let bVal = b[sortConfig.key];
     if (sortConfig.key === 'total') {
-      aVal = parseFloat(aVal);
-      bVal = parseFloat(bVal);
+      aVal = parseFloat(aVal) || 0;
+      bVal = parseFloat(bVal) || 0;
     }
     if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
     if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
@@ -219,16 +272,28 @@ const OrderManagement = () => {
     setShowDeleteModal(true);
   };
 
-  const confirmDelete = () => {
-    if (orderToDelete.id === 'multiple') {
-      setOrdersData(ordersData.filter(o => !selectedOrders.includes(o.id)));
-      setSelectedOrders([]);
-    } else {
-      setOrdersData(ordersData.filter(o => o.id !== orderToDelete.id));
-      setSelectedOrders(selectedOrders.filter(id => id !== orderToDelete.id));
+  const confirmDelete = async () => {
+    setLoading(true);
+    try {
+      if (orderToDelete.id === 'multiple') {
+        await Promise.all(selectedOrders.map(id => 
+          axios.delete(`${API_URL}/Order/${id}`, getAuthHeaders())
+        ));
+        showPopup('success', `${selectedOrders.length} orders deleted successfully`);
+        setSelectedOrders([]);
+      } else {
+        await axios.delete(`${API_URL}/Order/${orderToDelete.id}`, getAuthHeaders());
+        showPopup('success', 'Order deleted successfully');
+      }
+      await fetchOrders();
+      setShowDeleteModal(false);
+      setOrderToDelete(null);
+    } catch (error) {
+      console.error('Error deleting order:', error);
+      showPopup('error', 'Failed to delete order');
+    } finally {
+      setLoading(false);
     }
-    setShowDeleteModal(false);
-    setOrderToDelete(null);
   };
 
   const handleBulkDelete = () => {
@@ -237,69 +302,112 @@ const OrderManagement = () => {
     setShowDeleteModal(true);
   };
 
-  const handleViewOrder = (order) => {
+  const handleViewOrder = async (order) => {
     setViewOrder(order);
     setShowViewModal(true);
   };
 
-  const handleEditOrder = (order) => {
-    setEditOrder({ ...order });
+  const handleEditOrder = async (order) => {
+    setEditOrder({
+      ...order,
+      custID: order.custID || order.orderCustomer?.id,
+      prodID: order.prodID || order.OrderedProduct?.id,
+      paymentType: displayEnumValue(order.paymentType),
+      orderType: displayEnumValue(order.orderType),
+      orderStatus: displayEnumValue(order.orderStatus)
+    });
     setShowEditModal(true);
   };
 
-  const saveEditOrder = () => {
-    setOrdersData(ordersData.map(o => o.id === editOrder.id ? editOrder : o));
-    setShowEditModal(false);
-    setEditOrder(null);
+  const saveEditOrder = async () => {
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('custID', editOrder.custID);
+      formData.append('prodID', editOrder.prodID);
+      formData.append('paymentType', transformToDbEnum(editOrder.paymentType, 'paymentType'));
+      formData.append('orderType', transformToDbEnum(editOrder.orderType, 'orderType'));
+      formData.append('orderStatus', transformToDbEnum(editOrder.orderStatus, 'orderStatus'));
+      formData.append('orderDate', editOrder.orderDate);
+      formData.append('orderTime', editOrder.orderTime);
+
+      await axios.put(`${API_URL}/Order/${editOrder.id}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          ...getAuthHeaders().headers
+        },
+      });
+
+      showPopup('success', 'Order updated successfully');
+      await fetchOrders();
+      setShowEditModal(false);
+      setEditOrder(null);
+    } catch (error) {
+      console.error('Update error:', error.response?.data || error);
+      showPopup('error', 'Failed to update order: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleAddOrder = () => {
-    // Validation for new customer
-    if (isNewCustomer) {
-      if (!newCustomerDetails.name || !newCustomerDetails.email || !newCustomerDetails.phone || !newCustomerDetails.address) {
-        alert('Please fill all customer details');
+  const handleAddOrder = async () => {
+    try {
+      if (!newOrder.prodID) {
+        showPopup('error', 'Please select a product');
         return;
       }
-    }
 
-    const today = new Date();
-    const formattedDate = newOrder.date || today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    let finalOrder = {
-      id: 'SO' + Math.floor(Math.random() * 10000),
-      date: formattedDate,
-      time: newOrder.time || today.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      ...newOrder,
-      total: parseFloat(newOrder.total),
-      variants: parseInt(newOrder.variants) || 0
-    };
-
-    if (isNewCustomer) {
-      finalOrder.customer = newCustomerDetails.name;
-      finalOrder.email = newCustomerDetails.email;
-      finalOrder.phone = newCustomerDetails.phone;
-      finalOrder.address = newCustomerDetails.address;
-    } else {
-      const existing = ordersData.find(o => o.customer === newOrder.customer);
-      if (existing) {
-        finalOrder.email = existing.email;
-        finalOrder.phone = existing.phone;
-        finalOrder.address = existing.address;
+      if (!isNewCustomer && !newOrder.custID) {
+        showPopup('error', 'Please select a customer');
+        return;
       }
-    }
 
-    setOrdersData([finalOrder, ...ordersData]);
-    setShowAddModal(false);
-    setIsNewCustomer(false);
-    setNewCustomerDetails({ name: '', email: '', phone: '', address: '' });
-    setNewOrder({
-      product: '', variants: 0, customer: '', total: '', payment: '',
-      status: '', orderType: '', orderNote: '', date: '', time: ''
-    });
-    setSearchedTerm('');
+      if (isNewCustomer && !tempCustomerId) {
+        showPopup('error', 'Please add customer first by clicking "Add Customer" button');
+        return;
+      }
+
+      setLoading(true);
+
+      const formData = new FormData();
+      formData.append('custID', isNewCustomer ? tempCustomerId : newOrder.custID);
+      formData.append('prodID', newOrder.prodID);
+      formData.append('paymentType', transformToDbEnum(newOrder.paymentType || 'Cash on Delivery', 'paymentType'));
+      formData.append('orderType', transformToDbEnum(newOrder.orderType || 'Website Order', 'orderType'));
+      formData.append('orderStatus', transformToDbEnum(newOrder.orderStatus || 'Pending', 'orderStatus'));
+      formData.append('orderDate', newOrder.orderDate || new Date().toISOString().split('T')[0]);
+      formData.append('orderTime', newOrder.orderTime || new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }));
+
+      await axios.post(`${API_URL}/Order`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          ...getAuthHeaders().headers
+        },
+      });
+
+      showPopup('success', 'Order created successfully');
+      await fetchOrders();
+      
+      setShowAddModal(false);
+      setIsNewCustomer(false);
+      setNewCustomerDetails({ name: '', email: '', phone: '', address: '' });
+      setTempCustomerId(null);
+      setNewOrder({
+        custID: '', prodID: '', paymentType: '',
+        orderStatus: '', orderType: '', orderDate: '', orderTime: ''
+      });
+      setSearchedTerm('');
+      
+    } catch (error) {
+      console.error('Error creating order:', error.response?.data || error);
+      showPopup('error', 'Failed to create order: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCustomerSelect = (e) => {
-    setNewOrder({ ...newOrder, customer: e.target.value });
+    setNewOrder({ ...newOrder, custID: e.target.value });
   };
 
   const clearFilters = () => {
@@ -314,25 +422,21 @@ const OrderManagement = () => {
     setShowFilterModal(false);
   };
 
-  // Export to CSV function - FIXED
   const handleExport = () => {
-    const headers = ['Order ID', 'Product', 'Variants', 'Date', 'Time', 'Customer', 'Email', 'Phone', 'Total', 'Payment', 'Status', 'Order Type', 'Address', 'Notes'];
+    const headers = ['Order ID', 'Product', 'Date', 'Time', 'Customer', 'Email', 'Phone', 'Total', 'Payment', 'Status', 'Order Type'];
     
     const csvData = filteredOrders.map(order => [
-      order.id,
-      order.product,
-      order.variants,
-      order.date,
-      order.time || '',
-      order.customer,
-      order.email || '',
-      order.phone || '',
-      order.total,
-      order.payment,
-      order.status,
-      order.orderType || '',
-      order.address || '',
-      order.orderNote || ''
+      order.orderID || '',
+      order.OrderedProduct?.productName || '',
+      order.orderDate || '',
+      order.orderTime || '',
+      order.orderCustomer?.customerName || '',
+      order.orderCustomer?.customerEmail || '',
+      order.orderCustomer?.phoneNumber || '',
+      order.OrderedProduct?.price || '',
+      displayEnumValue(order.paymentType) || '',
+      displayEnumValue(order.orderStatus) || '',
+      displayEnumValue(order.orderType) || '',
     ]);
 
     const csvContent = [
@@ -351,17 +455,80 @@ const OrderManagement = () => {
     document.body.removeChild(link);
   };
 
-  const statusOptions = ['Pending', 'Confirmed', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered', 'Completed', 'Cancelled'];
+  // UI Display values
+  const paymentOptions = [
+    'Cash on Delivery',
+    'UPI',
+    'Credit Card',
+    'Debit Card',
+    'Net Banking'
+  ];
+
+  const orderTypeOptions = [
+    'Marketplace Order',
+    'Website Order',
+    'In-Store Purchase'
+  ];
+
+  const statusOptions = [
+    'Pending',
+    'Confirmed',
+    'Packed',
+    'Shipped',
+    'Out for Delivery',
+    'Delivered',
+    'Completed'
+  ];
 
   return (
     <div className="dashboard-layout">
-     <Sidebar />
-      {/* Main Content */}
+      <Sidebar />
+
+      {popup.show && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          zIndex: 10000,
+          background: popup.type === 'success' ? '#dcfce7' : '#fee2e2',
+          color: popup.type === 'success' ? '#16a34a' : '#dc2626',
+          padding: '16px 24px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          fontWeight: '600',
+          animation: 'slideIn 0.3s ease-out'
+        }}>
+          {popup.message}
+        </div>
+      )}
+
+      {loading && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '24px',
+            borderRadius: '12px',
+            fontWeight: '600'
+          }}>
+            Loading...
+          </div>
+        </div>
+      )}
+
       <div className="order-management">
-        {/* Header */}
         <div className="order-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            
             <h1 className="order-title">Order Management</h1>
           </div>
           <div className="header-actions">
@@ -376,7 +543,6 @@ const OrderManagement = () => {
           </div>
         </div>
 
-        {/* Search & Actions */}
         <div className="order-actions-bar">
           <div className="search-container">
             <Search size={18} className="search-icon" />
@@ -388,7 +554,7 @@ const OrderManagement = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-            <div className="tab-actions">
+          <div className="tab-actions">
             <button className="btn-icon" onClick={() => setShowFilterModal(true)}>
               <Filter size={16} /> Filters
               {(dateFilter.start || dateFilter.end || priceFilter.min || priceFilter.max || statusFilter.length > 0 || paymentFilter.length > 0) && (
@@ -407,7 +573,6 @@ const OrderManagement = () => {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="order-tabs">
           <button className={`tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>
             All Orders
@@ -415,30 +580,34 @@ const OrderManagement = () => {
           {statusOptions.map(status => (
             <button
               key={status}
-              className={`tab ${activeTab === status.toLowerCase().replace(/ /g, '-') ? 'active' : ''}`}
-              onClick={() => setActiveTab(status.toLowerCase().replace(/ /g, '-'))}
+              className={`tab ${activeTab === status.toLowerCase().replace(/ /g, '') ? 'active' : ''}`}
+              onClick={() => setActiveTab(status.toLowerCase().replace(/ /g, ''))}
             >
               {status}
             </button>
           ))}
-        
         </div>
 
-        {/* Table */}
         <div className="orders-table-container">
           <table className="orders-table">
             <thead>
               <tr>
-                <th><input type="checkbox" onChange={toggleSelectAll} checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0} /></th>
-                <th onClick={() => handleSort('id')}>
-                  Order ID {sortConfig.key === 'id' && (sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
+                <th>
+                  <input 
+                    type="checkbox" 
+                    onChange={toggleSelectAll} 
+                    checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0} 
+                  />
+                </th>
+                <th onClick={() => handleSort('orderID')} style={{ cursor: 'pointer' }}>
+                  Order ID {sortConfig.key === 'orderID' && (sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
                 </th>
                 <th>Product</th>
-                <th onClick={() => handleSort('date')}>
-                  Date {sortConfig.key === 'date' && (sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
+                <th onClick={() => handleSort('orderDate')} style={{ cursor: 'pointer' }}>
+                  Date {sortConfig.key === 'orderDate' && (sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
                 </th>
                 <th>Customer</th>
-                <th onClick={() => handleSort('total')}>
+                <th onClick={() => handleSort('total')} style={{ cursor: 'pointer' }}>
                   Total {sortConfig.key === 'total' && (sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
                 </th>
                 <th>Payment</th>
@@ -447,101 +616,110 @@ const OrderManagement = () => {
               </tr>
             </thead>
             <tbody>
-              {paginatedOrders.map(order => (
-                <tr key={order.id}>
-                  <td><input type="checkbox" checked={selectedOrders.includes(order.id)} onChange={() => toggleOrderSelection(order.id)} /></td>
-                  <td><span className="order-id">{order.id}</span></td>
-                  <td>
-                    <div className="product-cell">
-                      <div className="product-image-placeholder"></div>
-                      <div>
-                        <div className="product-name">{order.product}</div>
-                        <div className="product-variants">{order.variants} Variants</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>{order.date}</td>
-                  <td>{order.customer}</td>
-                  <td>₹{order.total.toFixed(2)}</td>
-                  <td>{order.payment}</td>
-                  <td><span className={`status-badge ${getStatusClass(order.status)}`}>{order.status}</span></td>
-                  <td>
-                    <div className="action-icons">
-                      <button className="icon-btn" onClick={() => handleViewOrder(order)}><Eye size={16} /></button>
-                      <button className="icon-btn" onClick={() => handleEditOrder(order)}><Edit2 size={16} /></button>
-                      <button className="icon-btn" onClick={() => handleDeleteOrder(order)}><Trash2 size={16} /></button>
-                    </div>
+              {paginatedOrders.length === 0 ? (
+                <tr>
+                  <td colSpan="9" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                    {loading ? 'Loading orders...' : 'No orders found'}
                   </td>
                 </tr>
-              ))}
+              ) : (
+                paginatedOrders.map(order => (
+                  <tr key={order.id}>
+                    <td>
+                      <input 
+                        type="checkbox" 
+                        checked={selectedOrders.includes(order.id)} 
+                        onChange={() => toggleOrderSelection(order.id)} 
+                      />
+                    </td>
+                    <td><span className="order-id">{order.orderID}</span></td>
+                    <td>
+                      <div className="product-cell">
+                        <div className="product-image-placeholder"></div>
+                        <div>
+                          <div className="product-name">{order.OrderedProduct?.productName || 'N/A'}</div>
+                          <div className="product-variants">{order.OrderedProduct?.variants || 0} Variants</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{order.orderDate || 'N/A'}</td>
+                    <td>{order.orderCustomer?.customerName || 'N/A'}</td>
+                    <td>₹{order.OrderedProduct?.price?.toFixed(2) || '0.00'}</td>
+                    <td>{displayEnumValue(order.paymentType) || 'N/A'}</td>
+                    <td>
+                      <span className={`status-badge ${getStatusClass(order.orderStatus)}`}>
+                        {displayEnumValue(order.orderStatus)}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="action-icons">
+                        <button className="icon-btn" onClick={() => handleViewOrder(order)} title="View">
+                          <Eye size={16} />
+                        </button>
+                        <button className="icon-btn" onClick={() => handleEditOrder(order)} title="Edit">
+                          <Edit2 size={16} />
+                        </button>
+                        <button className="icon-btn" onClick={() => handleDeleteOrder(order)} title="Delete">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
-        {/* Pagination */}
-        <div className="pagination">
-          <div className="pagination-info">
-            Showing {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredOrders.length)} of {filteredOrders.length}
-          </div>
-          <div className="pagination-controls">
-            <button className="page-btn" disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>←</button>
-            {[...Array(totalPages)].map((_, i) => (
-              <button key={i + 1} className={`page-btn ${currentPage === i + 1 ? 'active' : ''}`} onClick={() => setCurrentPage(i + 1)}>
-                {i + 1}
-              </button>
-            ))}
-            <button className="page-btn" disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>→</button>
-          </div>
-        </div>
-
-        {selectedOrders.length > 0 && (
-          <button className="btn-bulk-delete" onClick={handleBulkDelete}>
-            <Trash2 size={16} /> Delete Selected ({selectedOrders.length})
-          </button>
-        )}
-
-        {/* Delete Modal */}
-        {showDeleteModal && (
-          <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
-              <div className="modal-header">
-                <h3>Delete Order</h3>
-                <button className="modal-close" onClick={() => setShowDeleteModal(false)}><X size={20} /></button>
-              </div>
-              <div className="modal-body">
-                <p>Are you sure you want to delete {orderToDelete.id === 'multiple' ? `${orderToDelete.count} orders` : `order ${orderToDelete.id}`}?</p>
-                <p className="modal-warning">This action cannot be undone.</p>
-              </div>
-              <div className="modal-footer">
-                <button className="btn-cancel" onClick={() => setShowDeleteModal(false)}>Cancel</button>
-                <button className="btn-delete" onClick={confirmDelete}>Delete</button>
-              </div>
+        {filteredOrders.length > 0 && (
+          <div className="pagination">
+            <div className="pagination-info">
+              Showing {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredOrders.length)} of {filteredOrders.length}
+            </div>
+            <div className="pagination-controls">
+              <button className="page-btn" disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>←</button>
+              {[...Array(totalPages)].map((_, i) => (
+                <button 
+                  key={i + 1} 
+                  className={`page-btn ${currentPage === i + 1 ? 'active' : ''}`} 
+                  onClick={() => setCurrentPage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button className="page-btn" disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>→</button>
             </div>
           </div>
         )}
 
-        {/* View Modal */}
+        {selectedOrders.length > 0 && (
+          <button className="btn-bulk-delete" onClick={handleBulkDelete} style={{ marginTop: '20px' }}>
+            <Trash2 size={16} /> Delete Selected ({selectedOrders.length})
+          </button>
+        )}
+
         {showViewModal && viewOrder && (
           <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
             <div className="modal-content modal-large" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
-                <h3>View Order - {viewOrder.id}</h3>
-                <button className="modal-close" onClick={() => setShowViewModal(false)}><X size={20} /></button>
+                <h3>View Order - {viewOrder.orderID}</h3>
+                <button className="modal-close" onClick={() => setShowViewModal(false)}>
+                  <X size={20} />
+                </button>
               </div>
               <div className="modal-body">
                 <div className="order-details-grid">
-                  {viewOrder.product && <div className="detail-item"><label>Product</label><p>{viewOrder.product}</p></div>}
-                  {viewOrder.variants > 0 && <div className="detail-item"><label>Variants</label><p>{viewOrder.variants} Variants</p></div>}
-                  {viewOrder.customer && <div className="detail-item"><label>Customer</label><p>{viewOrder.customer}</p></div>}
-                  {viewOrder.email && <div className="detail-item"><label>Email</label><p>{viewOrder.email}</p></div>}
-                  {viewOrder.phone && <div className="detail-item"><label>Phone</label><p>{viewOrder.phone}</p></div>}
-                  <div className="detail-item"><label>Total</label><p>₹{viewOrder.total?.toFixed(2) || '-'}</p></div>
-                  {viewOrder.payment && <div className="detail-item"><label>Payment</label><p>{viewOrder.payment}</p></div>}
-                  {viewOrder.status && <div className="detail-item"><label>Status</label><p className={`status-badge ${getStatusClass(viewOrder.status)}`}>{viewOrder.status}</p></div>}
-                  {viewOrder.address && <div className="detail-item full-width"><label>Address</label><p>{viewOrder.address}</p></div>}
-                  {viewOrder.orderNote && <div className="detail-item full-width"><label>Notes</label><p>{viewOrder.orderNote}</p></div>}
-                  {viewOrder.orderType && <div className="detail-item"><label>Order Type</label><p>{viewOrder.orderType}</p></div>}
-                  {viewOrder.time && <div className="detail-item"><label>Time</label><p>{viewOrder.time}</p></div>}
+                  <div className="detail-item"><label>Product</label><p>{viewOrder.OrderedProduct?.productName || 'N/A'}</p></div>
+                  <div className="detail-item"><label>Customer</label><p>{viewOrder.orderCustomer?.customerName || 'N/A'}</p></div>
+                  <div className="detail-item"><label>Email</label><p>{viewOrder.orderCustomer?.customerEmail || 'N/A'}</p></div>
+                  <div className="detail-item"><label>Phone</label><p>{viewOrder.orderCustomer?.phoneNumber || 'N/A'}</p></div>
+                  <div className="detail-item"><label>Total</label><p>₹{viewOrder.OrderedProduct?.price?.toFixed(2) || '0.00'}</p></div>
+                  <div className="detail-item"><label>Payment</label><p>{displayEnumValue(viewOrder.paymentType) || 'N/A'}</p></div>
+                  <div className="detail-item"><label>Status</label><p className={`status-badge ${getStatusClass(viewOrder.orderStatus)}`}>{displayEnumValue(viewOrder.orderStatus)}</p></div>
+                  <div className="detail-item full-width"><label>Address</label><p>{viewOrder.orderCustomer?.customerAddress || 'N/A'}</p></div>
+                  {viewOrder.orderType && <div className="detail-item"><label>Order Type</label><p>{displayEnumValue(viewOrder.orderType)}</p></div>}
+                  {viewOrder.orderTime && <div className="detail-item"><label>Time</label><p>{viewOrder.orderTime}</p></div>}
+                  {viewOrder.orderDate && <div className="detail-item"><label>Date</label><p>{viewOrder.orderDate}</p></div>}
                 </div>
               </div>
               <div className="modal-footer">
@@ -551,82 +729,91 @@ const OrderManagement = () => {
           </div>
         )}
 
-        {/* Edit Modal */}
         {showEditModal && editOrder && (
           <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
             <div className="modal-content modal-large" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
-                <h3>Edit Order - {editOrder.id}</h3>
-                <button className="modal-close" onClick={() => setShowEditModal(false)}><X size={20} /></button>
+                <h3>Edit Order - {editOrder.orderID}</h3>
+                <button className="modal-close" onClick={() => setShowEditModal(false)}>
+                  <X size={20} />
+                </button>
               </div>
               <div className="modal-body">
                 <div className="form-grid">
                   <div className="form-group">
-                    <label>Product</label>
-                    <input type="text" value={editOrder.product || ''} onChange={e => setEditOrder({ ...editOrder, product: e.target.value })} />
-                  </div>
-                  <div className="form-group">
-                    <label>Variants</label>
-                    <input type="number" min="0" value={editOrder.variants || ''} onChange={e => setEditOrder({ ...editOrder, variants: parseInt(e.target.value) || 0 })} />
-                  </div>
-                  <div className="form-group">
-                    <label>Customer</label>
-                    <input type="text" value={editOrder.customer || ''} onChange={e => setEditOrder({ ...editOrder, customer: e.target.value })} />
-                  </div>
-                  <div className="form-group">
-                    <label>Email</label>
-                    <input type="email" value={editOrder.email || ''} onChange={e => setEditOrder({ ...editOrder, email: e.target.value })} />
-                  </div>
-                  <div className="form-group">
-                    <label>Phone</label>
-                    <input type="tel" value={editOrder.phone || ''} onChange={e => setEditOrder({ ...editOrder, phone: e.target.value })} />
-                  </div>
-                  <div className="form-group">
-                    <label>Total (₹)</label>
-                    <input type="number" step="0.01" value={editOrder.total || ''} onChange={e => setEditOrder({ ...editOrder, total: parseFloat(e.target.value) || 0 })} />
-                  </div>
-                  <div className="form-group">
-                    <label>Payment</label>
-                    <select value={editOrder.payment || ''} onChange={e => setEditOrder({ ...editOrder, payment: e.target.value })}>
-                      <option value="">Select</option>
-                      <option>Cash on Delivery (COD)</option>
-                      <option>UPI</option>
-                      <option>Credit Card</option>
-                      <option>Debit Card</option>
-                      <option>Net Banking</option>
+                    <label>Product *</label>
+                    <select value={editOrder.prodID || ''} onChange={e => setEditOrder({ ...editOrder, prodID: e.target.value })}>
+                      <option value="">Select Product</option>
+                      {products.map(p => <option key={p.id} value={p.id}>{p.productName}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
-                    <label>Status</label>
-                    <select value={editOrder.status || ''} onChange={e => setEditOrder({ ...editOrder, status: e.target.value })}>
+                    <label>Customer *</label>
+                    <select value={editOrder.custID || ''} onChange={e => setEditOrder({ ...editOrder, custID: e.target.value })}>
+                      <option value="">Select Customer</option>
+                      {customers.map(c => <option key={c.id} value={c.id}>{c.customerName}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Payment Type *</label>
+                    <select value={editOrder.paymentType || ''} onChange={e => setEditOrder({ ...editOrder, paymentType: e.target.value })}>
+                      <option value="">Select</option>
+                      {paymentOptions.map(option => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Order Status *</label>
+                    <select value={editOrder.orderStatus || ''} onChange={e => setEditOrder({ ...editOrder, orderStatus: e.target.value })}>
+                      <option value="">Select</option>
                       {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
-                  <div className="form-group full-width">
-                    <label>Address</label>
-                    <input type="text" value={editOrder.address || ''} onChange={e => setEditOrder({ ...editOrder, address: e.target.value })} />
+                  <div className="form-group">
+                    <label>Order Type *</label>
+                    <select value={editOrder.orderType || ''} onChange={e => setEditOrder({ ...editOrder, orderType: e.target.value })}>
+                      <option value="">Select</option>
+                      {orderTypeOptions.map(option => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Order Date *</label>
+                    <input 
+                      type="date" 
+                      value={editOrder.orderDate || ''} 
+                      onChange={e => setEditOrder({ ...editOrder, orderDate: e.target.value })} 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Order Time *</label>
+                    <input 
+                      type="time" 
+                      value={editOrder.orderTime || ''} 
+                      onChange={e => setEditOrder({ ...editOrder, orderTime: e.target.value })} 
+                    />
                   </div>
                 </div>
               </div>
               <div className="modal-footer">
                 <button className="btn-cancel" onClick={() => setShowEditModal(false)}>Cancel</button>
-                <button className="btn-primary" onClick={saveEditOrder}>Save Changes</button>
+                <button className="btn-primary" onClick={saveEditOrder} disabled={loading}>
+                  {loading ? 'Saving...' : 'Save Changes'}
+                </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Add Order Modal */}
         {showAddModal && (
           <div className="modal-overlay" onClick={() => { setShowAddModal(false); setSearchedTerm(''); }}>
             <div className="modal-content modal-add-order" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <h3>Create New Order</h3>
-                <button className="modal-close" onClick={() => setShowAddModal(false)}><X size={20} /></button>
+                <button className="modal-close" onClick={() => setShowAddModal(false)}>
+                  <X size={20} />
+                </button>
               </div>
               <div className="modal-body">
                 <div className="order-details-form">
-                  {/* New Customer Toggle */}
                   <div className="form-group full-width">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                       <label>New Customer</label>
@@ -639,30 +826,64 @@ const OrderManagement = () => {
                       <div className="form-grid">
                         <div className="form-group">
                           <label>Name *</label>
-                          <input type="text" value={newCustomerDetails.name} onChange={e => setNewCustomerDetails({ ...newCustomerDetails, name: e.target.value })} placeholder="Customer name" />
+                          <input 
+                            type="text" 
+                            value={newCustomerDetails.name} 
+                            onChange={e => setNewCustomerDetails({ ...newCustomerDetails, name: e.target.value })} 
+                            placeholder="Customer name" 
+                          />
                         </div>
                         <div className="form-group">
                           <label>Email *</label>
-                          <input type="email" value={newCustomerDetails.email} onChange={e => setNewCustomerDetails({ ...newCustomerDetails, email: e.target.value })} placeholder="customer@example.com" />
+                          <input 
+                            type="email" 
+                            value={newCustomerDetails.email} 
+                            onChange={e => setNewCustomerDetails({ ...newCustomerDetails, email: e.target.value })} 
+                            placeholder="customer@example.com" 
+                          />
                         </div>
                         <div className="form-group">
                           <label>Phone *</label>
-                          <input type="tel" value={newCustomerDetails.phone} onChange={e => setNewCustomerDetails({ ...newCustomerDetails, phone: e.target.value })} placeholder="+1234567890" />
+                          <input 
+                            type="tel" 
+                            value={newCustomerDetails.phone} 
+                            onChange={e => setNewCustomerDetails({ ...newCustomerDetails, phone: e.target.value })} 
+                            placeholder="+1234567890" 
+                          />
                         </div>
                         <div className="form-group full-width">
                           <label>Address *</label>
-                          <input type="text" value={newCustomerDetails.address} onChange={e => setNewCustomerDetails({ ...newCustomerDetails, address: e.target.value })} placeholder="Full address" />
+                          <input 
+                            type="text" 
+                            value={newCustomerDetails.address} 
+                            onChange={e => setNewCustomerDetails({ ...newCustomerDetails, address: e.target.value })} 
+                            placeholder="Full address" 
+                          />
+                        </div>
+                        <div className="form-group full-width">
+                          <button 
+                            className="btn-primary" 
+                            onClick={createCustomer}
+                            disabled={loading}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
+                          >
+                            <Plus size={16} /> {loading ? 'Adding...' : 'Add Customer'}
+                          </button>
+                          {tempCustomerId && (
+                            <p style={{ color: '#27ae60', fontSize: '13px', marginTop: '8px' }}>
+                              ✓ Customer added successfully! ID: {tempCustomerId}
+                            </p>
+                          )}
                         </div>
                       </div>
                     ) : (
-                      <select value={newOrder.customer} onChange={handleCustomerSelect} className="select-customer full-width">
+                      <select value={newOrder.custID} onChange={handleCustomerSelect} className="select-customer">
                         <option value="">Select Customer</option>
-                        {[...new Set(ordersData.map(o => o.customer))].map(c => <option key={c} value={c}>{c}</option>)}
+                        {customers.map(c => <option key={c.id} value={c.id}>{c.customerName}</option>)}
                       </select>
                     )}
                   </div>
 
-                  {/* Product Search */}
                   <div className="form-group full-width">
                     <label>Search Product Name</label>
                     <div className="search-product-container">
@@ -678,101 +899,95 @@ const OrderManagement = () => {
                         <div className="search-results">
                           {filteredProducts.map(p => (
                             <div
-                              key={p.name}
+                              key={p.id}
                               className="product-item"
                               onClick={() => {
-                                setNewOrder({ ...newOrder, product: p.name, variants: p.variants, total: p.price.toString() });
+                                setNewOrder({ ...newOrder, prodID: p.id });
                                 setSearchedTerm('');
                               }}
                             >
-                              {p.name} - ₹{p.price} ({p.variants} Variants)
+                              {p.productName} - ₹{p.price || 0}
                             </div>
                           ))}
                         </div>
                       )}
                     </div>
-                    {searchedTerm && filteredProducts.length === 0 && <p style={{ color: '#999', fontSize: '12px', marginTop: '4px' }}>No products found</p>}
+                    {searchedTerm && filteredProducts.length === 0 && (
+                      <p style={{ color: '#999', fontSize: '12px', marginTop: '4px' }}>No products found</p>
+                    )}
                   </div>
 
-                  {/* Selected Product */}
-                  {newOrder.product && (
-                    <div className="selected-product full-width">
+                  {newOrder.prodID && (
+                    <div className="selected-product">
                       <div className="product-image-placeholder"></div>
                       <div className="product-info-mini">
-                        <div className="product-name">{newOrder.product}</div>
-                        <div className="product-variants">{newOrder.variants} Variants</div>
+                        <div className="product-name">
+                          {products.find(p => p.id === parseInt(newOrder.prodID))?.productName || 'Selected Product'}
+                        </div>
                       </div>
-                      <div className="product-price">₹{newOrder.total}</div>
+                      <div className="product-price">
+                        ₹{products.find(p => p.id === parseInt(newOrder.prodID))?.price || '0'}
+                      </div>
                     </div>
                   )}
 
-                  {/* Manual Entry */}
                   <div className="manual-entry-section full-width">
-                    <h4 style={{ marginBottom: '16px' }}>Or Add Manually</h4>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Product Name *</label>
-                        <input type="text" value={newOrder.product} onChange={e => setNewOrder({ ...newOrder, product: e.target.value })} placeholder="e.g., Organza Bow" />
-                      </div>
-                      <div className="form-group">
-                        <label>Variants *</label>
-                        <input type="number" min="0" value={newOrder.variants} onChange={e => setNewOrder({ ...newOrder, variants: parseInt(e.target.value) || 0 })} placeholder="e.g., 3" />
-                      </div>
-                    </div>
+                    <h4 style={{ marginBottom: '16px' }}>Or Select Product Manually</h4>
                     <div className="form-group">
-                      <label>Total Amount (₹) *</label>
-                      <input type="number" step="0.01" value={newOrder.total} onChange={e => setNewOrder({ ...newOrder, total: e.target.value })} placeholder="0.00" />
+                      <label>Product *</label>
+                      <select 
+                        value={newOrder.prodID} 
+                        onChange={e => setNewOrder({ ...newOrder, prodID: e.target.value })}
+                      >
+                        <option value="">Select Product</option>
+                        {products.map(p => <option key={p.id} value={p.id}>{p.productName} - ₹{p.price}</option>)}
+                      </select>
                     </div>
                   </div>
 
-                  {/* Other Fields */}
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Payment Type</label>
-                      <select value={newOrder.payment} onChange={e => setNewOrder({ ...newOrder, payment: e.target.value })}>
+                      <label>Payment Type *</label>
+                      <select value={newOrder.paymentType} onChange={e => setNewOrder({ ...newOrder, paymentType: e.target.value })}>
                         <option value="">Select</option>
-                        <option>Cash on Delivery (COD)</option>
-                        <option>UPI</option>
-                        <option>Credit Card</option>
-                        <option>Debit Card</option>
-                        <option>Net Banking</option>
+                        {paymentOptions.map(option => <option key={option} value={option}>{option}</option>)}
                       </select>
                     </div>
                     <div className="form-group">
-                      <label>Order Type</label>
+                      <label>Order Type *</label>
                       <select value={newOrder.orderType} onChange={e => setNewOrder({ ...newOrder, orderType: e.target.value })}>
                         <option value="">Select</option>
-                        <option>Marketplace Order</option>
-                        <option>Website Order</option>
-                        <option>In-Store Purchase</option>
+                        {orderTypeOptions.map(option => <option key={option} value={option}>{option}</option>)}
                       </select>
                     </div>
                   </div>
+
                   <div className="form-row">
                     <div className="form-group">
                       <label>Order Date</label>
-                      <input type="date" value={newOrder.date} onChange={e => setNewOrder({ ...newOrder, date: e.target.value })} />
+                      <input 
+                        type="date" 
+                        value={newOrder.orderDate} 
+                        onChange={e => setNewOrder({ ...newOrder, orderDate: e.target.value })} 
+                        placeholder={new Date().toISOString().split('T')[0]}
+                      />
                     </div>
                     <div className="form-group">
                       <label>Order Time</label>
-                      <input type="time" value={newOrder.time} onChange={e => setNewOrder({ ...newOrder, time: e.target.value })} />
+                      <input 
+                        type="time" 
+                        value={newOrder.orderTime} 
+                        onChange={e => setNewOrder({ ...newOrder, orderTime: e.target.value })} 
+                      />
                     </div>
                   </div>
+
                   <div className="form-group">
-                    <label>Order Status</label>
-                    <select value={newOrder.status} onChange={e => setNewOrder({ ...newOrder, status: e.target.value })}>
+                    <label>Order Status *</label>
+                    <select value={newOrder.orderStatus} onChange={e => setNewOrder({ ...newOrder, orderStatus: e.target.value })}>
                       <option value="">Select</option>
                       {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
-                  </div>
-                  <div className="form-group full-width">
-                    <label>Order Note</label>
-                    <textarea
-                      value={newOrder.orderNote}
-                      onChange={e => setNewOrder({ ...newOrder, orderNote: e.target.value })}
-                      placeholder="Add any special instructions..."
-                      rows="3"
-                    />
                   </div>
                 </div>
               </div>
@@ -781,22 +996,46 @@ const OrderManagement = () => {
                 <button
                   className="btn-create-order"
                   onClick={handleAddOrder}
-                  disabled={!newOrder.product || !newOrder.total || (!isNewCustomer && !newOrder.customer) || (isNewCustomer && (!newCustomerDetails.name || !newCustomerDetails.email || !newCustomerDetails.phone || !newCustomerDetails.address))}
+                  disabled={loading || !newOrder.prodID || (!isNewCustomer && !newOrder.custID) || (isNewCustomer && !tempCustomerId)}
                 >
-                  Create Order
+                  {loading ? 'Creating...' : 'Create Order'}
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Filter Modal */}
+        {showDeleteModal && (
+          <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>Delete Order</h3>
+                <button className="modal-close" onClick={() => setShowDeleteModal(false)}>
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="modal-body">
+                <p>Are you sure you want to delete {orderToDelete?.id === 'multiple' ? `${orderToDelete.count} orders` : `order ${orderToDelete?.orderID}`}?</p>
+                <p className="modal-warning">This action cannot be undone.</p>
+              </div>
+              <div className="modal-footer">
+                <button className="btn-cancel" onClick={() => setShowDeleteModal(false)}>Cancel</button>
+                <button className="btn-delete" onClick={confirmDelete} disabled={loading}>
+                  {loading ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showFilterModal && (
           <div className="modal-overlay" onClick={() => setShowFilterModal(false)}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <h3>Advanced Filters</h3>
-                <button className="modal-close" onClick={() => setShowFilterModal(false)}><X size={20} /></button>
+                <button className="modal-close" onClick={() => setShowFilterModal(false)}>
+                  <X size={20} />
+                </button>
               </div>
               <div className="modal-body">
                 <div className="filter-section">
@@ -834,7 +1073,7 @@ const OrderManagement = () => {
                 <div className="filter-section">
                   <h4>Payment Method</h4>
                   <div className="checkbox-group">
-                    {['Cash on Delivery (COD)', 'UPI', 'Credit Card', 'Debit Card', 'Net Banking'].map(method => (
+                    {paymentOptions.map(method => (
                       <label key={method} className="checkbox-label">
                         <input
                           type="checkbox"

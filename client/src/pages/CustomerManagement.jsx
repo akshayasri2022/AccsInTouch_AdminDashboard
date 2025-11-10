@@ -29,7 +29,18 @@ const MOCK_CUSTOMERS = Array.from({ length: 20 }).map((_, i) => {
 
 const API_BASE = "http://localhost:25186/api/customer";
 
-/* ---------------- Profile Modal (GET one, PUT, DELETE via axios) ---------------- */
+/* Helper: return a flag emoji for a country code */
+function flagForCode(code) {
+  const map = {
+    "+1": "🇺🇸",
+    "+44": "🇬🇧",
+    "+91": "🇮🇳",
+    "+234": "🇳🇬",
+  };
+  return map[code] || "🌐";
+}
+
+/* ---------------- Profile Modal ---------------- */
 function CustomerModal({ id, onClose, onUpdated, onDeleted }) {
   const [customer, setCustomer] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -97,7 +108,6 @@ function CustomerModal({ id, onClose, onUpdated, onDeleted }) {
       onClose();
     } catch (err) {
       console.error("DELETE failed:", err);
-      // fallback: remove locally
       onDeleted(customer.id);
       onClose();
       alert("API delete failed — removed locally.");
@@ -125,7 +135,6 @@ function CustomerModal({ id, onClose, onUpdated, onDeleted }) {
       onUpdated(updated);
     } catch (err) {
       console.error("PUT failed:", err);
-      // fallback: update locally
       const fallback = { ...customer, name: form.name, email: form.email, phone: form.phone, address: form.address };
       setCustomer(fallback);
       onUpdated(fallback);
@@ -239,7 +248,7 @@ function CustomerModal({ id, onClose, onUpdated, onDeleted }) {
   );
 }
 
-/* ---------------- Add Customer Modal (axios.post) ---------------- */
+/* ---------------- Add Customer Modal ---------------- */
 function AddCustomerModal({ onClose, onAdd }) {
   useEffect(() => {
     function onKey(e) { if (e.key === "Escape") onClose(); }
@@ -324,18 +333,36 @@ function AddCustomerModal({ onClose, onAdd }) {
           </div>
 
           <div className="phone-row">
-            <select className="country-select" value={countryCode} onChange={(e)=>setCountryCode(e.target.value)}>
-              <option value="+1">+1</option>
-              <option value="+44">+44</option>
-              <option value="+91">+91</option>
-              <option value="+234">+234</option>
-            </select>
+            {/* Country select with inline flag */}
+            <div className="country-select-wrap" role="presentation" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span className="flag-icon" aria-hidden="true">{flagForCode(countryCode)}</span>
+              <select
+                className="country-select"
+                value={countryCode}
+                onChange={(e) => setCountryCode(e.target.value)}
+                aria-label="Country code"
+              >
+                <option value="+1">+1</option>
+                <option value="+44">+44</option>
+                <option value="+91">+91</option>
+                <option value="+234">+234</option>
+              </select>
+            </div>
+
             <input className="form-input phone-input" value={phone} onChange={(e)=>setPhone(e.target.value)} placeholder="8023456789" />
           </div>
 
-          <label className="label toggle-row">
+          <label className="label toggle-row add-address-toggle" style={{ marginTop: 12 }}>
             <span>Add Address</span>
-            <input type="checkbox" checked={addAddress} onChange={(e)=>setAddAddress(e.target.checked)} />
+            <label className="small-toggle add-only-toggle" style={{ margin: 0 }}>
+              <input
+                type="checkbox"
+                checked={addAddress}
+                onChange={(e) => setAddAddress(e.target.checked)}
+                aria-label="Add address"
+              />
+              <span className="toggle-ui" />
+            </label>
           </label>
 
           {addAddress && (
@@ -362,11 +389,18 @@ function AddCustomerModal({ onClose, onAdd }) {
             </>
           )}
 
-          <label className="label toggle-row small">
+          <label className="label toggle-row small" style={{ marginTop: 6 }}>
             <span>Billing Address</span>
-            <label className="small-toggle">
-              <input type="checkbox" checked={sameBilling} onChange={(e)=>setSameBilling(e.target.checked)} />
-              <span>Same as Customer Address</span>
+
+            <label className="small-toggle add-only-toggle" style={{ margin: 0, alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 13, color: "#6b7280" }}>Same as Customer Address</span>
+              <input
+                type="checkbox"
+                checked={sameBilling}
+                onChange={(e) => setSameBilling(e.target.checked)}
+                aria-label="Same as customer address"
+              />
+              <span className="toggle-ui" />
             </label>
           </label>
 
@@ -390,6 +424,9 @@ export default function CustomerManagement() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [profileOpenId, setProfileOpenId] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [ordersFilter, setOrdersFilter] = useState("Any"); // <-- new state
+  const [ordersMenuOpen, setOrdersMenuOpen] = useState(false);
+  const ordersMenuRef = useRef(null);
   const gridRef = useRef(null);
 
   async function fetchCustomers() {
@@ -406,11 +443,32 @@ export default function CustomerManagement() {
     fetchCustomers();
   }, []);
 
+  // close orders menu when clicking outside
+  useEffect(() => {
+    function onDocClick(e) {
+      if (!ordersMenuRef.current) return;
+      if (!ordersMenuRef.current.contains(e.target)) setOrdersMenuOpen(false);
+    }
+    if (ordersMenuOpen) document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [ordersMenuOpen]);
+
+  // filtering now includes ordersFilter but otherwise unchanged
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+
+    function ordersMatch(c) {
+      if (ordersFilter === "Any") return true;
+      if (ordersFilter === "0-10") return c.orders >= 0 && c.orders <= 10;
+      if (ordersFilter === "11-25") return c.orders >= 11 && c.orders <= 25;
+      if (ordersFilter === "26+") return c.orders >= 26;
+      return true;
+    }
+
     return customers.filter((c) => {
       if (tab === "Active" && c.status !== "Active") return false;
       if (tab === "Blocked" && c.status !== "Blocked") return false;
+      if (!ordersMatch(c)) return false;
       if (!q) return true;
       return (
         String(c.id).includes(q) ||
@@ -418,7 +476,7 @@ export default function CustomerManagement() {
         (c.email && c.email.toLowerCase().includes(q))
       );
     });
-  }, [customers, tab, query]);
+  }, [customers, tab, query, ordersFilter]);
 
   useEffect(() => {
     const pages = Math.max(1, Math.ceil(filtered.length / perPage));
@@ -500,11 +558,75 @@ export default function CustomerManagement() {
                 </div>
               </div>
 
+              {/* Tabs row + compact orders filter button (no "Orders" text) */}
               <div className="cm-tabs-row">
                 <div className="tabs-compact">
                   {["All","Active","Blocked"].map(t => (
                     <button key={t} className={`cm-tab ${tab === t ? "active" : ""}`} onClick={() => { setTab(t); setPage(1); }}>{t}</button>
                   ))}
+                </div>
+
+                {/* Compact filter button (just an icon/button) */}
+                <div style={{ position: "relative" }} ref={ordersMenuRef}>
+                  <button
+                    className="cm-btn cm-export-btn"
+                    onClick={() => setOrdersMenuOpen(o => !o)}
+                    aria-haspopup="true"
+                    aria-expanded={ordersMenuOpen}
+                    aria-label="Filter by orders"
+                    style={{ padding: "8px 10px", height: 36 }}
+                  >
+                    ⌄
+                  </button>
+
+                  {/* dropdown menu: updated visual to match screenshot */}
+                  {ordersMenuOpen && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        right: 0,
+                        top: "42px",
+                        background: "#fff",
+                        border: "1px solid rgba(16,24,40,0.06)",
+                        boxShadow: "0 12px 30px rgba(11,15,25,0.08)",
+                        borderRadius: 12,
+                        padding: 10,
+                        zIndex: 60,
+                        minWidth: 130,
+                      }}
+                      role="menu"
+                    >
+                      {[
+                        { key: "Any", label: "Any" },
+                        { key: "0-10", label: "0–10" },
+                        { key: "11-25", label: "11–25" },
+                        { key: "26+", label: "26+" },
+                      ].map((opt, idx) => (
+                        <button
+                          key={opt.key}
+                          onClick={() => { setOrdersFilter(opt.key); setOrdersMenuOpen(false); setPage(1); }}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "10px 12px",
+                            background: ordersFilter === opt.key ? "linear-gradient(180deg,#fff1ff,#fef6ff)" : "transparent",
+                            color: ordersFilter === opt.key ? "#6b46b6" : "#222",
+                            border: "none",
+                            borderRadius: 8,
+                            fontWeight: 600,
+                            fontSize: 16,
+                            cursor: "pointer",
+                            marginBottom: idx === 3 ? 0 : 8, // spacing between items, none after last
+                          }}
+                          role="menuitem"
+                          aria-checked={ordersFilter === opt.key}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
