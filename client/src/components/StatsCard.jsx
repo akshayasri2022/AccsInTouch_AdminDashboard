@@ -38,7 +38,7 @@ export default function StatsCard({
     <div className={`stats-card stats-${variant}`}>
       <div className="stats-top">
         <div className="icon-wrap">{icon}</div>
-        <div className="period">This Week ▾</div>
+        
       </div>
 
       <div className="stats-content">

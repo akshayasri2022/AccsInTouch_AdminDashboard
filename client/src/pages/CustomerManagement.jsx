@@ -4,7 +4,62 @@ import Sidebar from "../components/Sidebar";
 import CustomerTopbar from "../components/CustomerTopbar";
 import "../styles/CustomerManagement.css";
 
-/* Mock customers for fallback */
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
+/* ----------------------
+   Axios instance / config
+   ---------------------- */
+const axiosAPI = axios.create({
+  baseURL: "http://localhost:25186/api",
+  timeout: 10000,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+// helper to handle res.data vs res.data.data shapes
+function unwrap(res) {
+  if (!res) return null;
+  if (res.data === undefined) return null;
+  if (res.data && typeof res.data === "object" && "data" in res.data) return res.data.data;
+  return res.data;
+}
+
+/* -------------------------
+   localStorage helpers for
+   persisting unsynced entries
+   ------------------------- */
+const LS_KEY = "cm_unsynced_customers_v1";
+
+function loadUnsyncedFromStorage() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch (e) {
+    console.warn("Failed to read unsynced from localStorage", e);
+    return [];
+  }
+}
+function saveUnsyncedToStorage(arr) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(arr || []));
+  } catch (e) {
+    console.warn("Failed to save unsynced to localStorage", e);
+  }
+}
+function addUnsyncedToStorage(item) {
+  const arr = loadUnsyncedFromStorage();
+  arr.unshift(item);
+  saveUnsyncedToStorage(arr);
+}
+function removeUnsyncedFromStorage(tempId) {
+  const arr = loadUnsyncedFromStorage().filter(x => String(x.id) !== String(tempId));
+  saveUnsyncedToStorage(arr);
+}
+
+/* Mock customers for fallback (kept from your original) */
 const MOCK_CUSTOMERS = Array.from({ length: 20 }).map((_, i) => {
   const names = [
     "Linda Blair","John Bushmill","Laura Prichet",
@@ -27,8 +82,6 @@ const MOCK_CUSTOMERS = Array.from({ length: 20 }).map((_, i) => {
   };
 });
 
-const API_BASE = "http://localhost:25186/api/customer";
-
 /* Helper: return a flag emoji for a country code */
 function flagForCode(code) {
   const map = {
@@ -40,118 +93,334 @@ function flagForCode(code) {
   return map[code] || "🌐";
 }
 
-/* ---------------- Profile Modal ---------------- */
-function CustomerModal({ id, onClose, onUpdated, onDeleted }) {
-  const [customer, setCustomer] = useState(null);
-  const [loading, setLoading] = useState(true);
+/* --------------
+   normalize helper
+   maps common API shapes to the UI model
+   -------------- */
+function normalizeCustomer(raw) {
+  if (!raw) return null;
+
+  // id variations
+  const id = raw.id ?? raw.customerId ?? raw._id ?? raw.Id ?? null;
+
+  // name variations
+  const name = raw.name
+    || raw.fullName
+    || (raw.firstName && raw.lastName ? `${raw.firstName} ${raw.lastName}` : null)
+    || raw.customerName
+    || raw.Username
+    || "Unnamed";
+
+  // avatar variations
+  const avatar = raw.avatar ?? raw.avatarUrl ?? raw.image ?? raw.photo ?? null;
+
+  // orders variations
+  const orders = raw.orders ?? raw.orderCount ?? raw.totalOrders ?? 0;
+
+  // balance variations (normalize numbers to string)
+  const balanceVal = raw.balance ?? raw.accountBalance ?? raw.wallet ?? 0;
+  const balance = typeof balanceVal === "number" ? `$${balanceVal}` : (balanceVal || "$0");
+
+  const status = raw.status ?? raw.state ?? "Active";
+  const email = raw.email ?? raw.e_mail ?? raw.emailAddress ?? "";
+  const address = raw.address ?? raw.addr ?? raw.location ?? "";
+  const phone = raw.phone ?? raw.phoneNumber ?? raw.mobile ?? "";
+  const lastTransaction = raw.lastTransaction ?? raw.last_txn ?? raw.lastOrderDate ?? "-";
+  const lastOnline = raw.lastOnline ?? raw.lastSeen ?? raw.onlineStatus ?? "-";
+
+  return {
+    id,
+    name,
+    avatar,
+    orders,
+    balance,
+    status,
+    email,
+    address,
+    phone,
+    lastTransaction,
+    lastOnline,
+    __raw: raw,
+  };
+}
+
+
+function ToggleSwitch({ checked, onChange, ariaLabel }) {
+  const wrapStyle = {
+    display: "inline-block",
+    width: 44,
+    height: 24,
+    position: "relative",
+    verticalAlign: "middle",
+    marginLeft: 8, // small spacing so when text is first the toggle sits a bit right
+  };
+  const inputStyle = {
+    position: "absolute",
+    opacity: 0,
+    width: 0,
+    height: 0,
+  };
+  const sliderStyle = {
+    position: "absolute",
+    cursor: "pointer",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: checked ? "#6b46b6" : "#d1d5db",
+    transition: "background-color 0.18s ease",
+    borderRadius: 30,
+  };
+  const knobStyle = {
+    position: "absolute",
+    content: '""',
+    height: 18,
+    width: 18,
+    left: checked ? 22 : 2,
+    bottom: 3,
+    backgroundColor: "#fff",
+    transition: "left 0.18s ease",
+    borderRadius: "50%",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.12)",
+  };
+
+  return (
+    <label style={wrapStyle} aria-label={ariaLabel}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={inputStyle}
+        aria-label={ariaLabel}
+      />
+      <span style={sliderStyle} />
+      <span style={knobStyle} />
+    </label>
+  );
+}
+
+/* ---------------- Profile Modal ----------------
+   accepts initialCustomer to show local/new items immediately
+   Edited: Update is optimistic save (fast UX), background sync
+*/
+function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
+  const [customer, setCustomer] = useState(initialCustomer || null);
+  const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState({});
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    function onKey(e) { if (e.key === "Escape") onClose(); }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    // seed with initialCustomer if provided
+    if (initialCustomer) {
+      setCustomer(initialCustomer);
+      setForm({
+        name: initialCustomer.name || "",
+        email: initialCustomer.email || "",
+        phone: initialCustomer.phone || "",
+        address: initialCustomer.address || "",
+      });
+    }
+  }, [initialCustomer]);
 
+  // NOTE: guard added — do not call backend for temp ids (they cause 500s)
   useEffect(() => {
-    let mounted = true;
+    if (id == null) return;
+    if (String(id).startsWith("temp-")) {
+      // local temp item — we've already seeded from initialCustomer, avoid network call
+      return;
+    }
+
+    let canceled = false;
+
     async function fetchOne() {
       setLoading(true);
       try {
-        const res = await axios.get(`${API_BASE}/${id}`);
-        if (!mounted) return;
-        const data = res.data;
-        setCustomer(data);
-        setForm({
-          name: data.name || "",
-          email: data.email || "",
-          phone: data.phone || "",
-          address: data.address || "",
-        });
+        const res = await axiosAPI.get(`/customer/${id}`);
+        if (canceled) return;
+        const data = unwrap(res);
+        // normalize server result if present
+        if (data) {
+          const normalized = Array.isArray(data) ? normalizeCustomer(data[0]) : normalizeCustomer(data);
+          if (normalized) {
+            setCustomer(normalized);
+            setForm({
+              name: normalized.name || "",
+              email: normalized.email || "",
+              phone: normalized.phone || "",
+              address: normalized.address || "",
+            });
+          }
+        } else {
+          // no useful data; keep initialCustomer if present
+        }
       } catch (err) {
         console.error("GET /customer/:id failed:", err);
-        const fallback = MOCK_CUSTOMERS.find((c) => String(c.id) === String(id));
-        if (fallback && mounted) {
-          setCustomer(fallback);
-          setForm({
-            name: fallback.name || "",
-            email: fallback.email || "",
-            phone: fallback.phone || "",
-            address: fallback.address || "",
-          });
-        } else {
-          alert("Failed to load customer details.");
+        toast.error("Failed to load customer details from server.");
+        // fallback to initialCustomer (already set) or mock if nothing
+        if (!initialCustomer) {
+          const fallback = MOCK_CUSTOMERS.find((c) => String(c.id) === String(id));
+          if (fallback) {
+            setCustomer(fallback);
+            setForm({
+              name: fallback.name || "",
+              email: fallback.email || "",
+              phone: fallback.phone || "",
+              address: fallback.address || "",
+            });
+          } else {
+            console.warn("No local fallback found for id", id);
+          }
         }
       } finally {
-        if (mounted) setLoading(false);
+        if (!canceled) setLoading(false);
       }
     }
-    if (id != null) fetchOne();
-    return () => { mounted = false; };
-  }, [id]);
+
+    fetchOne();
+    return () => { canceled = true; };
+  }, [id, initialCustomer]);
 
   if (!id) return null;
-  if (loading) return (
-    <div className="cm-modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+
+  if (loading && !customer) return (
+    <div className="cm-modal-backdrop" role="dialog" aria-modal="true">
       <div className="cm-modal" onClick={(e) => e.stopPropagation()}>
         <div className="cm-body">Loading...</div>
       </div>
     </div>
   );
+
   if (!customer) return null;
 
   async function handleDelete() {
+    // quick guard so user doesn't accidentally delete without confirmation
     if (!window.confirm("Delete this customer?")) return;
+
+    // If this is a local temporary item, just remove locally (no API call)
+    if (String(customer.id).startsWith("temp-")) {
+      // remove from local storage (if persisted) and from UI
+      try { removeUnsyncedFromStorage(customer.id); } catch (e) { /* ignore */ }
+      onDeleted(customer.id);
+      onClose();
+      toast.success("Customer removed locally.");
+      return;
+    }
+
+    // For real server-backed items: try server delete, treat 2xx/204 as success
     try {
-      await axios.delete(`${API_BASE}/${customer.id}`);
+      const res = await axiosAPI.delete(`/customer/${customer.id}`);
+
+      // Some APIs return 204 No Content, some return 200 with body. Treat 2xx as success.
+      const status = res && res.status ? res.status : (res && res.data && res.data.status ? res.data.status : null);
+
+      if (status && Math.floor(status / 100) === 2) {
+        // success — remove locally and close modal
+        onDeleted(customer.id);
+        onClose();
+        toast.success("Customer deleted successfully.");
+        return;
+      }
+
+      // if we get here, request didn't throw but returned unexpected status — still attempt to remove
+      console.warn("DELETE returned non-2xx status:", res);
       onDeleted(customer.id);
       onClose();
+      toast.success("Customer removed.");
     } catch (err) {
+      // network / server error
       console.error("DELETE failed:", err);
-      onDeleted(customer.id);
-      onClose();
-      alert("API delete failed — removed locally.");
+
+      // If server actually deleted but responded oddly (rare), still remove locally:
+      const maybeDeleted =
+        err?.response?.status === 404
+        || (err?.response?.status >= 200 && err?.response?.status < 300);
+
+      if (maybeDeleted) {
+        onDeleted(customer.id);
+        onClose();
+        toast.success("Customer deleted (server indicated not found).");
+        return;
+      }
+
+      // Otherwise ask user whether to remove locally anyway.
+      if (window.confirm("Failed to delete on server. Remove locally anyway?")) {
+        // remove local unsynced record if present
+        if (String(customer.id).startsWith("temp-")) removeUnsyncedFromStorage(customer.id);
+        onDeleted(customer.id);
+        onClose();
+        toast.success("Customer removed locally.");
+      } else {
+        // user chose not to remove locally — keep UI as-is
+        toast.info("Delete cancelled.");
+      }
     }
   }
 
   async function handleUpdate(ev) {
     ev.preventDefault();
     if (!form.name.trim() || !form.email.includes("@")) {
-      alert("Please provide a valid name and email.");
+      // replaced alert with toast
+      toast.error("Please provide a valid name and email.");
       return;
     }
 
+    const payload = {
+      ...customer,
+      name: form.name,
+      email: form.email,
+      phone: form.phone,
+      address: form.address,
+    };
+
+    // Fast UX: update UI immediately and close modal
+    setCustomer(payload);
+    onUpdated(payload);
+    setEditMode(false);
+    onClose();
+    toast.success("Customer updated (local).");
+
+    // Background sync: attempt PUT and reconcile when response arrives
     try {
-      const res = await axios.put(`${API_BASE}/${customer.id}`, {
-        ...customer,
-        name: form.name,
-        email: form.email,
-        phone: form.phone,
-        address: form.address,
-      });
-      const updated = res.data;
-      setCustomer(updated);
-      setEditMode(false);
-      onUpdated(updated);
+      const res = await axiosAPI.put(`/customer/${customer.id}`, payload);
+      const serverRaw = unwrap(res) || res.data;
+      if (serverRaw) {
+        const serverNormalized = normalizeCustomer(serverRaw) || serverRaw;
+        onUpdated(serverNormalized);
+        toast.success("Customer updated on server.");
+      } else if (res && typeof res.status === "number" && res.status >= 200 && res.status < 300) {
+        // 2xx without body — treat as success, keep optimistic payload
+        console.log("PUT returned 2xx with no body — keeping optimistic update.");
+        toast.success("Customer update acknowledged by server.");
+      } else {
+        // unexpected shape — mark as unsynced
+        console.warn("PUT returned unexpected shape, marking local item as unsynced:", res);
+        onUpdated({ ...payload, __syncError: true });
+        toast.error("Server returned unexpected response — changes saved locally.");
+      }
     } catch (err) {
-      console.error("PUT failed:", err);
-      const fallback = { ...customer, name: form.name, email: form.email, phone: form.phone, address: form.address };
-      setCustomer(fallback);
-      onUpdated(fallback);
-      setEditMode(false);
-      alert("Could not update via API — updated locally.");
+      // Network/server error: mark local item as unsynced (non-blocking) and log
+      console.warn("PUT failed in background — keeping local changes and marking as unsynced.", err);
+      onUpdated({ ...payload, __syncError: true });
+      toast.error("Failed to update on server — changes saved locally.");
     }
   }
+  // -------------------------------------------------------------------------------
 
   return (
-    <div className="cm-modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="cm-modal-backdrop" role="dialog" aria-modal="true" onClick={() => { if (!submitting) onClose(); }}>
       <div className="cm-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="cm-close" onClick={onClose} aria-label="Close">✕</button>
+        <button className="cm-close" onClick={() => { if (!submitting) onClose(); }} aria-label="Close">✕</button>
 
         <div className="cm-header">
           <div className="cm-banner" />
           <div className="cm-avatar-large-wrap">
-            <img src={customer.avatar} alt={customer.name} className="cm-avatar-large" />
+            {/* Render avatar only if provided (no default fallback) */}
+            {customer.avatar ? (
+              <img src={customer.avatar} alt={customer.name} className="cm-avatar-large" />
+            ) : (
+              <div className="cm-avatar-large cm-avatar-empty" />
+            )}
           </div>
         </div>
 
@@ -214,7 +483,20 @@ function CustomerModal({ id, onClose, onUpdated, onDeleted }) {
               </ul>
 
               <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 14 }}>
-                <button className="cm-btn ghost cancel" onClick={() => setEditMode(true)}>Edit</button>
+                <button
+                  className="cm-btn ghost cancel"
+                  onClick={() => {
+                    setEditMode(true);
+                    setForm({
+                      name: customer.name || "",
+                      email: customer.email || "",
+                      phone: customer.phone || "",
+                      address: customer.address || "",
+                    });
+                  }}
+                >
+                  Edit
+                </button>
                 <button className="cm-btn add-action" onClick={handleDelete}>Delete</button>
               </div>
             </>
@@ -224,20 +506,20 @@ function CustomerModal({ id, onClose, onUpdated, onDeleted }) {
 
               <div style={{ textAlign: "left", marginTop: 10 }}>
                 <label className="label">Name</label>
-                <input className="form-input" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} />
+                <input className="form-input" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} disabled={submitting}/>
 
                 <label className="label" style={{ marginTop: 8 }}>Email</label>
-                <input className="form-input" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} />
+                <input className="form-input" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} disabled={submitting}/>
 
                 <label className="label" style={{ marginTop: 8 }}>Phone</label>
-                <input className="form-input" value={form.phone} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} />
+                <input className="form-input" value={form.phone} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} disabled={submitting}/>
 
                 <label className="label" style={{ marginTop: 8 }}>Address</label>
-                <input className="form-input" value={form.address} onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))} />
+                <input className="form-input" value={form.address} onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))} disabled={submitting}/>
 
                 <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                  <button type="button" className="cm-btn ghost cancel" onClick={() => setEditMode(false)}>Cancel</button>
-                  <button type="submit" className="cm-btn add-action">Save</button>
+                  <button type="button" className="cm-btn ghost cancel" onClick={() => setEditMode(false)} disabled={submitting}>Cancel</button>
+                  <button type="submit" className="cm-btn add-action" disabled={submitting}>{submitting ? "Saving..." : "Save"}</button>
                 </div>
               </div>
             </form>
@@ -248,8 +530,8 @@ function CustomerModal({ id, onClose, onUpdated, onDeleted }) {
   );
 }
 
-/* ---------------- Add Customer Modal ---------------- */
-function AddCustomerModal({ onClose, onAdd }) {
+/* ---------------- Add Customer Modal (optimistic add + persisted) ---------------- */
+function AddCustomerModal({ onClose, onAdd, onSync }) {
   useEffect(() => {
     function onKey(e) { if (e.key === "Escape") onClose(); }
     window.addEventListener("keydown", onKey);
@@ -283,9 +565,10 @@ function AddCustomerModal({ onClose, onAdd }) {
     if (Object.keys(eobj).length) return;
 
     setSubmitting(true);
+    // NOTE: avatar intentionally set to null — no default image for new customers
     const payload = {
       name: name.trim(),
-      avatar: `https://i.pravatar.cc/160?img=${Math.floor(Math.random() * 70) + 1}`,
+      avatar: null, // <-- changed: do not assign default pravatar URL
       orders: 0,
       balance: "$0",
       status: "Active",
@@ -296,18 +579,35 @@ function AddCustomerModal({ onClose, onAdd }) {
       lastOnline: "Now",
     };
 
+    // create a temporary local representation (fast UI)
+    const tempId = `temp-${Date.now()}`;
+    const tempItem = { id: tempId, ...payload, __local: true, __createdAt: Date.now() };
+
+    // Immediately add to UI and persist locally so it survives refresh
+    onAdd(tempItem);
+    addUnsyncedToStorage(tempItem);
+    onClose(); // close modal quickly for instant UX
+    toast.success("Customer added locally.");
+
+    // Sync in background (non-blocking)
     try {
-      const res = await axios.post(API_BASE, payload);
-      const created = res.data;
-      onAdd(created);
-      onClose();
+      const res = await axiosAPI.post("/customer", payload); // POST /customer
+      const created = unwrap(res) || res.data || payload;
+      const normalized = normalizeCustomer(created) || created;
+      // call onSync to replace temp item with server item
+      if (onSync) onSync(tempId, normalized);
+      removeUnsyncedFromStorage(tempId);
+      console.log("Customer created on server:", created);
+      toast.success("Customer created on server.");
     } catch (err) {
-      console.error("POST failed:", err);
-      const id = Math.floor(Math.random() * 100000) + 2000;
-      const fallback = { id, ...payload };
-      onAdd(fallback);
-      onClose();
-      alert("Could not reach API — customer added locally.");
+      console.error("POST failed (optimistic flow):", err);
+      // mark local item with a sync error flag so you can show unsynced badge if desired
+      if (onSync) onSync(tempId, { ...tempItem, __syncError: true });
+      // mark in storage too
+      const arr = loadUnsyncedFromStorage().map(x => x.id === tempId ? { ...x, __syncError: true } : x);
+      saveUnsyncedToStorage(arr);
+      toast.error("Failed to sync new customer to server — saved locally.");
+      // do not show blocking alert — user already saw the created card in UI
     } finally {
       setSubmitting(false);
     }
@@ -333,7 +633,6 @@ function AddCustomerModal({ onClose, onAdd }) {
           </div>
 
           <div className="phone-row">
-            {/* Country select with inline flag */}
             <div className="country-select-wrap" role="presentation" style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span className="flag-icon" aria-hidden="true">{flagForCode(countryCode)}</span>
               <select
@@ -349,20 +648,13 @@ function AddCustomerModal({ onClose, onAdd }) {
               </select>
             </div>
 
-            <input className="form-input phone-input" value={phone} onChange={(e)=>setPhone(e.target.value)} placeholder="8023456789" />
+            <input className="form-input phone-input" value={phone} onChange={(e)=>setPhone(e.target.value)} placeholder="PhoneNumber" />
           </div>
 
-          <label className="label toggle-row add-address-toggle" style={{ marginTop: 12 }}>
-            <span>Add Address</span>
-            <label className="small-toggle add-only-toggle" style={{ margin: 0 }}>
-              <input
-                type="checkbox"
-                checked={addAddress}
-                onChange={(e) => setAddAddress(e.target.checked)}
-                aria-label="Add address"
-              />
-              <span className="toggle-ui" />
-            </label>
+          {/* -------- Add Address: text first, toggle after (per your request) -------- */}
+          <label className="label toggle-row add-address-toggle" style={{ marginTop: 12, display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 8 }}>
+            <span style={{ fontSize: 14, color: "rgba(94, 96, 99, 1)" }}>Add Address</span>
+            <ToggleSwitch checked={addAddress} onChange={(v) => setAddAddress(v)} ariaLabel="Add address" />
           </label>
 
           {addAddress && (
@@ -386,26 +678,30 @@ function AddCustomerModal({ onClose, onAdd }) {
                   <option>NY</option>
                 </select>
               </div>
+
+              {/* Billing Address heading + "Same as Customer Address" label with toggle after text */}
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 8, fontWeight: 600 }}>Billing Address</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ fontSize: 14, color: "#6b7280" }}>Same as Customer Address</div>
+                  <ToggleSwitch checked={sameBilling} onChange={(v) => setSameBilling(v)} ariaLabel="Same as customer address" />
+                </div>
+              </div>
             </>
           )}
 
-          <label className="label toggle-row small" style={{ marginTop: 6 }}>
-            <span>Billing Address</span>
-
-            <label className="small-toggle add-only-toggle" style={{ margin: 0, alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 13, color: "#6b7280" }}>Same as Customer Address</span>
-              <input
-                type="checkbox"
-                checked={sameBilling}
-                onChange={(e) => setSameBilling(e.target.checked)}
-                aria-label="Same as customer address"
-              />
-              <span className="toggle-ui" />
-            </label>
-          </label>
+          {!addAddress && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 6, fontWeight: 600 }}>Billing Address</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ fontSize: 14, color: "#6b7280" }}>Same as Customer Address</div>
+                <ToggleSwitch checked={sameBilling} onChange={(v) => setSameBilling(v)} ariaLabel="Same as customer address" />
+              </div>
+            </div>
+          )}
 
           <div className="modal-actions">
-            <button type="button" className="cm-btn ghost cancel" onClick={onClose}>Cancel</button>
+            <button type="button" className="cm-btn ghost cancel" onClick={onClose} disabled={submitting}>Cancel</button>
             <button type="submit" className="cm-btn add-action" disabled={submitting}>{submitting ? "Adding..." : "Add"}</button>
           </div>
         </form>
@@ -424,23 +720,70 @@ export default function CustomerManagement() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [profileOpenId, setProfileOpenId] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [ordersFilter, setOrdersFilter] = useState("Any"); // <-- new state
+  const [ordersFilter, setOrdersFilter] = useState("Any");
   const [ordersMenuOpen, setOrdersMenuOpen] = useState(false);
   const ordersMenuRef = useRef(null);
   const gridRef = useRef(null);
 
+  // fetch server list and also load any unsynced temp items from localStorage
   async function fetchCustomers() {
     try {
-      const res = await axios.get(API_BASE);
-      setCustomers(Array.isArray(res.data) ? res.data : []);
+      const res = await axiosAPI.get("/customer");
+      console.log("API /customer raw response:", res);
+      const data = unwrap(res);
+      const serverList = Array.isArray(data) ? data : [];
+
+      // normalize server items to expected UI shape
+      const normalizedServer = serverList.map(item => {
+        const n = normalizeCustomer(item) || item;
+        if (!n.id) {
+          console.warn("normalizeCustomer produced no id for item:", item);
+        }
+        return n;
+      });
+
+      // prepend unsynced temp items stored locally so they appear immediately
+      const unsynced = loadUnsyncedFromStorage() || [];
+      setCustomers([...unsynced, ...normalizedServer]);
     } catch (err) {
       console.error("GET /customer failed:", err);
-      setCustomers(MOCK_CUSTOMERS);
+      toast.error("Failed to load customers from server. Showing local data.");
+      const unsynced = loadUnsyncedFromStorage() || [];
+      setCustomers([...unsynced, ...MOCK_CUSTOMERS]);
     }
   }
 
   useEffect(() => {
     fetchCustomers();
+
+    // Also attempt to sync any unsynced items in storage in background
+    (async function trySyncStored() {
+      const unsynced = loadUnsyncedFromStorage();
+      if (!unsynced || !unsynced.length) return;
+      for (const temp of unsynced) {
+        try {
+          const payload = {
+            name: temp.name, email: temp.email, phone: temp.phone, address: temp.address,
+            avatar: temp.avatar, orders: temp.orders, balance: temp.balance, status: temp.status,
+            lastTransaction: temp.lastTransaction, lastOnline: temp.lastOnline,
+          };
+          const r = await axiosAPI.post("/customer", payload);
+          const created = unwrap(r) || r.data || payload;
+          const normalized = normalizeCustomer(created) || created;
+          // replace temp in current state
+          setCustomers(prev => {
+            const idx = prev.findIndex(c => String(c.id) === String(temp.id));
+            if (idx === -1) return [normalized, ...prev];
+            const next = [...prev]; next[idx] = normalized; return next;
+          });
+          removeUnsyncedFromStorage(temp.id);
+          toast.success(`Synced queued customer: ${temp.name}`);
+        } catch (err) {
+          // leave it in storage for manual retry later
+          console.warn("Sync retry failed for", temp.id, err);
+        }
+      }
+    })();
   }, []);
 
   // close orders menu when clicking outside
@@ -453,7 +796,6 @@ export default function CustomerManagement() {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [ordersMenuOpen]);
 
-  // filtering now includes ordersFilter but otherwise unchanged
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
 
@@ -503,10 +845,30 @@ export default function CustomerManagement() {
     });
   }
 
-  function handleAdd(customer) {
-    setCustomers(prev => [customer, ...prev]);
+  // handle optimistic add (temp item)
+  function handleAdd(tempOrCreated) {
+    setCustomers(prev => {
+      return [tempOrCreated, ...prev];
+    });
     setPage(1);
-    fetchCustomers(); // sync
+  }
+
+  // handle sync: replace temp item with server-confirmed object (or mark error)
+  function handleSync(tempId, serverObj) {
+    setCustomers(prev => {
+      const idx = prev.findIndex(c => String(c.id) === String(tempId));
+      if (idx === -1) {
+        return [serverObj, ...prev];
+      }
+      const next = [...prev];
+      next[idx] = serverObj;
+      return next;
+    });
+    // If serverObj is a real server-created object, remove from storage
+    if (serverObj && !serverObj.__syncError) {
+      removeUnsyncedFromStorage(tempId);
+      toast.success("Local item replaced with server record.");
+    }
   }
 
   function handleUpdatedCustomer(updated) {
@@ -514,6 +876,8 @@ export default function CustomerManagement() {
   }
 
   function handleDeletedCustomer(id) {
+    // if it was a temp unsynced item, remove from storage too
+    if (String(id).startsWith("temp-")) removeUnsyncedFromStorage(id);
     setCustomers(prev => prev.filter(c => String(c.id) !== String(id)));
   }
 
@@ -526,6 +890,7 @@ export default function CustomerManagement() {
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = "customers.csv"; a.click(); URL.revokeObjectURL(url);
+    toast.success("Export started.");
   }
 
   return (
@@ -553,8 +918,7 @@ export default function CustomerManagement() {
 
                   <div className="cm-add-column">
                     <button className="cm-btn cm-add-btn" onClick={() => setAddOpen(true)}>＋ Add Customer</button>
-                    <button className="cm-btn cm-filter-btn" onClick={() => alert("Filters")}>⚙️ Filters</button>
-                  </div>
+<button className="cm-btn cm-filter-btn" onClick={() => setOrdersMenuOpen(o => !o)}>⚙️ Filters</button>                  </div>
                 </div>
               </div>
 
@@ -566,20 +930,7 @@ export default function CustomerManagement() {
                   ))}
                 </div>
 
-                {/* Compact filter button (just an icon/button) */}
                 <div style={{ position: "relative" }} ref={ordersMenuRef}>
-                  <button
-                    className="cm-btn cm-export-btn"
-                    onClick={() => setOrdersMenuOpen(o => !o)}
-                    aria-haspopup="true"
-                    aria-expanded={ordersMenuOpen}
-                    aria-label="Filter by orders"
-                    style={{ padding: "8px 10px", height: 36 }}
-                  >
-                    ⌄
-                  </button>
-
-                  {/* dropdown menu: updated visual to match screenshot */}
                   {ordersMenuOpen && (
                     <div
                       style={{
@@ -597,7 +948,7 @@ export default function CustomerManagement() {
                       role="menu"
                     >
                       {[
-                        { key: "Any", label: "Any" },
+                        { key: "Any", label: "Order" },
                         { key: "0-10", label: "0–10" },
                         { key: "11-25", label: "11–25" },
                         { key: "26+", label: "26+" },
@@ -617,7 +968,7 @@ export default function CustomerManagement() {
                             fontWeight: 600,
                             fontSize: 16,
                             cursor: "pointer",
-                            marginBottom: idx === 3 ? 0 : 8, // spacing between items, none after last
+                            marginBottom: idx === 3 ? 0 : 8,
                           }}
                           role="menuitem"
                           aria-checked={ordersFilter === opt.key}
@@ -631,7 +982,7 @@ export default function CustomerManagement() {
               </div>
             </div>
 
-            {/* CARD GRID (keeps old visual) */}
+            {/* CARD GRID */}
             <div ref={gridRef} className="cm-grid" style={{ marginTop: 12 }}>
               {paged.map(c => {
                 const isSelected = selectedIds.has(c.id);
@@ -645,15 +996,27 @@ export default function CustomerManagement() {
                     onKeyDown={(e) => { if (e.key === "Enter") setProfileOpenId(c.id); }}
                   >
                     <div className="cm-card-top">
-                      <label className="card-checkbox" onClick={(e) => e.stopPropagation()}>
-                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(c.id)} />
+                      <label className="card-checkbox"
+                       onClick={(e) => { e.stopPropagation(); }}      // keep click from bubbling to card
+                      >
+                       <input
+                         type="checkbox"
+                         checked={isSelected}
+                         onChange={() => toggleSelect(c.id)}           // actually toggle when clicked
+                         aria-label={`Select ${c.name}`}
+                        />
                         <span className="checkbox-fake" />
-                      </label>
-                      <button className="card-more" onClick={(e)=>{ e.stopPropagation(); /* implement more menu */ }}>⋮</button>
+                    </label>
+                      <button className="card-more" onClick={(e)=>{ e.stopPropagation(); /* implement more menu if needed */ }}>⋮</button>
                     </div>
 
                     <div className="cm-avatar-wrap">
-                      <img src={c.avatar} alt={c.name} className="cm-avatar" />
+                      {/* show avatar only if exists, otherwise keep empty circle */}
+                      {c.avatar ? (
+                        <img src={c.avatar} alt={c.name} className="cm-avatar" />
+                      ) : (
+                        <div className="cm-avatar cm-avatar-empty" />
+                      )}
                     </div>
 
                     <div className="cm-card-body">
@@ -670,6 +1033,7 @@ export default function CustomerManagement() {
                           <div className="stat-value">{c.balance}</div>
                         </div>
                       </div>
+
                     </div>
                   </div>
                 );
@@ -705,16 +1069,20 @@ export default function CustomerManagement() {
         </div>
       </div>
 
-      {/* Modals */}
+      {/* Modals: pass initialCustomer so local/new items show instantly */}
       {profileOpenId && (
         <CustomerModal
           id={profileOpenId}
+          initialCustomer={customers.find(c => String(c.id) === String(profileOpenId))}
           onClose={() => setProfileOpenId(null)}
           onUpdated={handleUpdatedCustomer}
           onDeleted={handleDeletedCustomer}
         />
       )}
-      {addOpen && <AddCustomerModal onClose={() => setAddOpen(false)} onAdd={handleAdd} />}
+      {addOpen && <AddCustomerModal onClose={() => setAddOpen(false)} onAdd={handleAdd} onSync={handleSync} />}
+
+      {/* Toasts */}
+      <ToastContainer position="top-right" autoClose={3500} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
     </div>
   );
 }
