@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { FaSearch, FaDownload, FaFilter, FaCalendarAlt } from "react-icons/fa";
 import Sidebar from "../components/Sidebar";
-import ProductTopbar from "../components/ProductTopbar";
+import ProductTopbar from "../components/ProductTopbar"; // <-- product-specific topbar
 import ProductTable from "../components/ProductTable";
 import AddProductForm from "./AddProductForm";
 import "../styles/Product.css";
@@ -16,113 +16,150 @@ export default function ProductManagement() {
   const [globalSearch, setGlobalSearch] = useState("");
   const [rightSearch, setRightSearch] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Show add form when URL is /ProductManagement/add
   const [showAddForm, setShowAddForm] = useState(false);
 
   useEffect(() => {
-    setShowAddForm(location.pathname.includes("/add"));
+    setShowAddForm(location.pathname === "/ProductManagement/add");
   }, [location.pathname]);
 
-  const handleOpenAdd = () => {
+  function handleOpenAdd() {
     navigate("/ProductManagement/add");
-  };
-
-  const handleProductAdded = () => {
-    setRefreshKey((prev) => prev + 1);
-    setTimeout(() => {
-      navigate("/ProductManagement");
-    }, 1200);
-  };
-
-  const handleCloseAdd = () => {
+  }
+  function handleProductAdded(newProduct) {
+  setRefreshKey(prev => prev + 1);
+  setTimeout(() => {
     navigate("/ProductManagement");
-  };
+  }, 1500);
+}
+  function handleCloseAdd() {
+    navigate("/ProductManagement");
+  }
 
   return (
-    <div className="dashboard-root" style={{ display: "flex", minHeight: "100vh", background: "#f3f4f6" }}>
+    <div className="dashboard-root">
       <Sidebar />
-      <div className="dashboard-main" style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+
+      {/* main area includes ProductTopbar */}
+      <div className="dashboard-main">
         <ProductTopbar />
-        <div className="dashboard-content" style={{ flex: 1, padding: "20px" }}>
+
+        <div className="dashboard-content">
           <div className="product-page">
+            {/* Header + actions */}
             {!showAddForm && (
               <div className="product-header-wrap">
-                <div className="product-header-left">
-                  <h2>Products</h2>
-                </div>
-                <div className="product-header-right">
+                <div className="product-header-right ">
+
+                  {/* Search bar with icon */}
                   <div className="search-wrapper">
                     <FaSearch className="search-icon" />
                     <input
-                      type="text"
                       className="search-input"
                       placeholder="Search product or SKU..."
                       value={globalSearch}
                       onChange={(e) => setGlobalSearch(e.target.value)}
                     />
                   </div>
-                  <button className="btn-outline">
+
+                  {/* Export button with icon */}
+                  <button
+                    className="btn-outline"
+                    onClick={() => alert("Export - implement as needed")}
+                  >
                     <FaDownload style={{ marginRight: "6px" }} /> Export
                   </button>
+
+                  {/* Add Product */}
                   <button className="btn-primary" onClick={handleOpenAdd}>
                     + Add Product
                   </button>
                 </div>
               </div>
             )}
+
+            {/* Tabs + right filter */}
             {!showAddForm && (
               <div className="product-filters">
                 <div className="tabs">
-                  {["all", "published", "lowstock", "draft"].map((t) => (
-                    <button
-                      key={t}
-                      className={`tab ${tab === t ? "active" : ""}`}
-                      onClick={() => setTab(t)}
-                    >
-                      {t === "all"
-                        ? "All Product"
-                        : t === "published"
-                        ? "Published"
-                        : t === "lowstock"
-                        ? "Low Stock"
-                        : "Draft"}
-                    </button>
-                  ))}
+                  <button
+                    className={`tab ${tab === "all" ? "active" : ""}`}
+                    onClick={() => setTab("all")}
+                  >
+                    All Product
+                  </button>
+                  <button
+                    className={`tab ${tab === "published" ? "active" : ""}`}
+                    onClick={() => setTab("published")}
+                  >
+                    Published
+                  </button>
+                  <button
+                    className={`tab ${tab === "lowstock" ? "active" : ""}`}
+                    onClick={() => setTab("lowstock")}
+                  >
+                    Low Stock
+                  </button>
+                  <button
+                    className={`tab ${tab === "draft" ? "active" : ""}`}
+                    onClick={() => setTab("draft")}
+                  >
+                    Draft
+                  </button>
                 </div>
+
                 <div className="right-filters">
+
+                  {/* Right-side search with icon */}
                   <div className="filter-search-wrapper">
                     <FaSearch className="filter-search-icon" />
                     <input
-                      type="text"
                       className="filter-input"
                       placeholder="Search product..."
                       value={rightSearch}
                       onChange={(e) => setRightSearch(e.target.value)}
                     />
                   </div>
+
+                  {/* Select date with icon */}
                   <div className="select-wrapper">
                     <FaCalendarAlt className="select-icon" />
                     <select className="filter-select">
                       <option>Select Date</option>
-                      <option>Last 7 days</option>
-                      <option>Last 30 days</option>
+                      <option value="7">Last 7 days</option>
+                      <option value="30">Last 30 days</option>
                     </select>
                   </div>
-                  <button className="btn-outline">
+
+                  {/* Filters button with icon */}
+                  <button
+                    className="btn-outline"
+                    onClick={() => alert("Open filters")}
+                  >
                     <FaFilter style={{ marginRight: "6px" }} /> Filters
                   </button>
                 </div>
               </div>
             )}
+
+            {/* Main area */}
             <div className="product-main-area">
               {showAddForm ? (
-                <AddProductForm onCancel={handleCloseAdd} onProductAdded={handleProductAdded} />
+                <div className="add-product-inline">
+                  <AddProductForm onCancel={handleCloseAdd} 
+                  onProductAdded={handleProductAdded}
+                    />
+                </div>
               ) : (
-                <ProductTable
-                  key={refreshKey}
-                  search={globalSearch}
-                  rightSearch={rightSearch}
-                  tab={tab}
-                />
+                <div className="product-table-container">
+                  <ProductTable
+                    key={refreshKey}
+                    search={globalSearch}
+                    tab={tab}
+                    rightSearch={rightSearch}
+                  />
+                </div>
               )}
             </div>
           </div>
