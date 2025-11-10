@@ -253,7 +253,15 @@ html, body, #root {
   align-items: flex-start;
 }
 .card-checkbox { display: flex; align-items: center; gap: 8px; }
-.card-checkbox input { display: none; }
+.card-checkbox input {
+  position: absolute;
+  opacity: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+}
+
 .card-checkbox .checkbox-fake {
   width: 18px; height: 18px; border-radius: 6px;
   border: 1px solid rgba(16,24,40,0.08); background:#fff; display:inline-block;
@@ -396,8 +404,11 @@ html, body, #root {
   z-index: 2000;
   padding: 18px;
 }
+
+/* ======================== MODAL CARD SIZE ADJUSTMENTS ======================== */
+/* Updated to produce a slightly narrower card while preserving layout/spacing. */
 .cm-modal {
-  width: 360px;
+  width: 380px;                     /* compact card size */
   max-width: calc(100% - 40px);
   background: #fff;
   border-radius: 12px;
@@ -418,25 +429,25 @@ html, body, #root {
 }
 
 /* header banner */
-.cm-header .cm-banner { height: 88px; background: linear-gradient(180deg,#f7e9f7,#f0e6f3); }
+.cm-header .cm-banner { height: 72px; background: linear-gradient(180deg,#f7e9f7,#f0e6f3); }
 
 /* avatar overlap */
 .cm-avatar-large-wrap,
-.cm-avatar-wrap { display: flex; justify-content: center; margin-top: -36px; }
+.cm-avatar-wrap { display: flex; justify-content: center; margin-top: -28px; }
 .cm-avatar-large,
 .cm-avatar {
-  width: 84px;
-  height: 84px;
+  width: 68px;
+  height: 68px;
   border-radius: 999px;
-  border: 8px solid #fff;
+  border: 6px solid #fff;
   object-fit: cover;
   background: #e9e9ee;
 }
 
 /* body */
-.cm-body { padding: 18px 22px 26px; text-align: center; }
-.cm-name { margin: 6px 0 6px; font-weight: 700; color: #111827; font-size: 16px; }
-.cm-sep { border: 0; border-bottom: 1px solid rgba(16,24,40,0.06); margin: 12px 0; }
+.cm-body { padding: 16px 20px 22px; text-align: center; }
+.cm-name { margin: 4px 0 4px; font-weight: 700; color: #111827; font-size: 15px; }
+.cm-sep { border: 0; border-bottom: 1px solid rgba(16,24,40,0.06); margin: 10px 0; }
 
 /* info list */
 .cm-info-list,
@@ -446,14 +457,14 @@ html, body, #root {
   padding: 0;
   text-align: left;
 }
-.cm-info-list li { display: flex; gap: 12px; padding: 10px 0; align-items: flex-start; }
+.cm-info-list li { display: flex; gap: 10px; padding: 8px 0; align-items: flex-start; }
 .cm-icon {
-  width: 36px; height: 36px; flex: 0 0 36px;
+  width: 32px; height: 32px; flex: 0 0 32px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: #eef2ff; border-radius: 10px; color: #6b7280; font-size: 16px;
+  background: #eef2ff; border-radius: 8px; color: #6b7280; font-size: 15px;
 }
-.cm-info-title { font-size: 12px; color: #9aa3b2; }
-.cm-info-sub { font-size: 13px; color: #111827; margin-top: 4px; line-height: 1.25; }
+.cm-info-title { font-size: 11px; color: #9aa3b2; }
+.cm-info-sub { font-size: 13px; color: #111827; margin-top: 3px; line-height: 1.25; }
 
 /* ================= ADD CUSTOMER MODAL ================= */
 .add-modal-backdrop,
