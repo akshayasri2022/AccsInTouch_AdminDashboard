@@ -36,7 +36,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await axios.post("http://localhost:25186/api/login", {
+      const response = await axios.post("https://acc-in-touch-1.onrender.com/api/login", {
         email: email.trim(),
         password,
       });

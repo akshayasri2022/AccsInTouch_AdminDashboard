@@ -40,7 +40,7 @@ export default function ProductManagement() {
       try {
         setLoading(true);
         setError("");
-        const res = await axios.get("http://localhost:25186/api/Product");
+        const res = await axios.get("https://acc-in-touch-1.onrender.com/api/Product");
         console.log(res,"responseProducts")
         setProducts(res.data || []);
       } catch (err) {

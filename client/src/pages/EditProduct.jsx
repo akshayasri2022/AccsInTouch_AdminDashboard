@@ -41,7 +41,7 @@ const [form, setForm] = useState({
 const fetchProduct = async () => {
     try {
       const { data } = await axios.get(
-        `http://localhost:25186/api/Product/${id}`   // <-- your local backend
+        `https://acc-in-touch-1.onrender.com/api/Product/${id}`   // <-- your local backend
       );
 
       setForm({
@@ -102,7 +102,7 @@ const handleSave = async (e) => {
 
     try {
       const { data, status } = await axios.put(
-        `http://localhost:25186/api/Product/${id}`,
+        `https://acc-in-touch-1.onrender.com/api/Product/${id}`,
         payload,
         {
           headers: { "Content-Type": "application/json" },
@@ -121,7 +121,7 @@ const handleSave = async (e) => {
     } catch (err) {
       console.error("Update error:", err);
       if (err.code === "ERR_NETWORK") {
-        alert("Network error – is the backend running on http://localhost:25186 ?");
+        alert("Network error");
       } else if (err.response) {
         const msg = err.response.data?.message || err.response.statusText;
         alert(`Update failed (${err.response.status}): ${msg}`);
