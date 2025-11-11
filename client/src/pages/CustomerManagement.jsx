@@ -7,18 +7,32 @@ import "../styles/CustomerManagement.css";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-/* ----------------------
-   Axios instance / config
-   ---------------------- */
 const axiosAPI = axios.create({
-  baseURL: "http://localhost:25186/api",
-  timeout: 10000,
+  baseURL: "https://acc-in-touch-1.onrender.com/api",
+  timeout: 60000, 
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-// helper to handle res.data vs res.data.data shapes
+async function postWithRetry(url, payload, attempts = 3, initialDelay = 1000) {
+  let lastErr = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await axiosAPI.post(url, payload);
+      return res;
+    } catch (err) {
+      lastErr = err;
+      // if it's a client error (4xx) we shouldn't retry
+      const status = err?.response?.status;
+      if (status && status >= 400 && status < 500) break;
+      // exponential backoff: 1s, 2s, 4s
+      const delay = initialDelay * Math.pow(2, i);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
 function unwrap(res) {
   if (!res) return null;
   if (res.data === undefined) return null;
@@ -26,10 +40,6 @@ function unwrap(res) {
   return res.data;
 }
 
-/* -------------------------
-   localStorage helpers for
-   persisting unsynced entries
-   ------------------------- */
 const LS_KEY = "cm_unsynced_customers_v1";
 
 function loadUnsyncedFromStorage() {
@@ -58,8 +68,21 @@ function removeUnsyncedFromStorage(tempId) {
   const arr = loadUnsyncedFromStorage().filter(x => String(x.id) !== String(tempId));
   saveUnsyncedToStorage(arr);
 }
-
-/* Mock customers for fallback (kept from your original) */
+// upsert: add or replace an entry in the unsynced array
+function upsertUnsyncedToStorage(item) {
+  try {
+    const arr = loadUnsyncedFromStorage();
+    const idx = arr.findIndex(x => String(x.id) === String(item.id));
+    if (idx === -1) {
+      arr.unshift(item);
+    } else {
+      arr[idx] = item;
+    }
+    saveUnsyncedToStorage(arr);
+  } catch (e) {
+    console.warn("Failed to upsert unsynced to localStorage", e);
+  }
+}
 const MOCK_CUSTOMERS = Array.from({ length: 20 }).map((_, i) => {
   const names = [
     "Linda Blair","John Bushmill","Laura Prichet",
@@ -81,8 +104,6 @@ const MOCK_CUSTOMERS = Array.from({ length: 20 }).map((_, i) => {
     lastOnline: "1 Day Ago",
   };
 });
-
-/* Helper: return a flag emoji for a country code */
 function flagForCode(code) {
   const map = {
     "+1": "🇺🇸",
@@ -92,32 +113,17 @@ function flagForCode(code) {
   };
   return map[code] || "🌐";
 }
-
-/* --------------
-   normalize helper
-   maps common API shapes to the UI model
-   -------------- */
 function normalizeCustomer(raw) {
   if (!raw) return null;
-
-  // id variations
   const id = raw.id ?? raw.customerId ?? raw._id ?? raw.Id ?? null;
-
-  // name variations
   const name = raw.name
     || raw.fullName
     || (raw.firstName && raw.lastName ? `${raw.firstName} ${raw.lastName}` : null)
     || raw.customerName
     || raw.Username
     || "Unnamed";
-
-  // avatar variations
   const avatar = raw.avatar ?? raw.avatarUrl ?? raw.image ?? raw.photo ?? null;
-
-  // orders variations
   const orders = raw.orders ?? raw.orderCount ?? raw.totalOrders ?? 0;
-
-  // balance variations (normalize numbers to string)
   const balanceVal = raw.balance ?? raw.accountBalance ?? raw.wallet ?? 0;
   const balance = typeof balanceVal === "number" ? `$${balanceVal}` : (balanceVal || "$0");
 
@@ -143,8 +149,6 @@ function normalizeCustomer(raw) {
     __raw: raw,
   };
 }
-
-
 function ToggleSwitch({ checked, onChange, ariaLabel }) {
   const wrapStyle = {
     display: "inline-block",
@@ -152,7 +156,7 @@ function ToggleSwitch({ checked, onChange, ariaLabel }) {
     height: 24,
     position: "relative",
     verticalAlign: "middle",
-    marginLeft: 8, // small spacing so when text is first the toggle sits a bit right
+    marginLeft: 8,
   };
   const inputStyle = {
     position: "absolute",
@@ -199,10 +203,6 @@ function ToggleSwitch({ checked, onChange, ariaLabel }) {
   );
 }
 
-/* ---------------- Profile Modal ----------------
-   accepts initialCustomer to show local/new items immediately
-   Edited: Update is optimistic save (fast UX), background sync
-*/
 function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
   const [customer, setCustomer] = useState(initialCustomer || null);
   const [loading, setLoading] = useState(false);
@@ -210,8 +210,8 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
   const [form, setForm] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
+ 
   useEffect(() => {
-    // seed with initialCustomer if provided
     if (initialCustomer) {
       setCustomer(initialCustomer);
       setForm({
@@ -222,24 +222,41 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
       });
     }
   }, [initialCustomer]);
-
-  // NOTE: guard added — do not call backend for temp ids (they cause 500s)
   useEffect(() => {
     if (id == null) return;
     if (String(id).startsWith("temp-")) {
-      // local temp item — we've already seeded from initialCustomer, avoid network call
+      return;
+    }
+    if (initialCustomer) {
       return;
     }
 
     let canceled = false;
-
     async function fetchOne() {
       setLoading(true);
+      try {
+        const unsynced = loadUnsyncedFromStorage() || [];
+        const override = unsynced.find(u => String(u.id) === String(id));
+        if (override) {
+          if (canceled) return;
+          setCustomer(override);
+          setForm({
+            name: override.name || "",
+            email: override.email || "",
+            phone: override.phone || "",
+            address: override.address || "",
+          });
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("Failed to read unsynced overrides before GET:", err);
+      }
+
       try {
         const res = await axiosAPI.get(`/customer/${id}`);
         if (canceled) return;
         const data = unwrap(res);
-        // normalize server result if present
         if (data) {
           const normalized = Array.isArray(data) ? normalizeCustomer(data[0]) : normalizeCustomer(data);
           if (normalized) {
@@ -251,26 +268,19 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
               address: normalized.address || "",
             });
           }
-        } else {
-          // no useful data; keep initialCustomer if present
         }
       } catch (err) {
         console.error("GET /customer/:id failed:", err);
-        toast.error("Failed to load customer details from server.");
-        // fallback to initialCustomer (already set) or mock if nothing
-        if (!initialCustomer) {
-          const fallback = MOCK_CUSTOMERS.find((c) => String(c.id) === String(id));
-          if (fallback) {
-            setCustomer(fallback);
-            setForm({
-              name: fallback.name || "",
-              email: fallback.email || "",
-              phone: fallback.phone || "",
-              address: fallback.address || "",
-            });
-          } else {
-            console.warn("No local fallback found for id", id);
-          }
+        console.warn("Failed to load customer details from server; using local fallback if available.");
+        const fallback = MOCK_CUSTOMERS.find((c) => String(c.id) === String(id));
+        if (fallback) {
+          setCustomer(fallback);
+          setForm({
+            name: fallback.name || "",
+            email: fallback.email || "",
+            phone: fallback.phone || "",
+            address: fallback.address || "",
+          });
         }
       } finally {
         if (!canceled) setLoading(false);
@@ -294,12 +304,9 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
   if (!customer) return null;
 
   async function handleDelete() {
-    // quick guard so user doesn't accidentally delete without confirmation
     if (!window.confirm("Delete this customer?")) return;
 
-    // If this is a local temporary item, just remove locally (no API call)
     if (String(customer.id).startsWith("temp-")) {
-      // remove from local storage (if persisted) and from UI
       try { removeUnsyncedFromStorage(customer.id); } catch (e) { /* ignore */ }
       onDeleted(customer.id);
       onClose();
@@ -307,31 +314,24 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
       return;
     }
 
-    // For real server-backed items: try server delete, treat 2xx/204 as success
     try {
       const res = await axiosAPI.delete(`/customer/${customer.id}`);
-
-      // Some APIs return 204 No Content, some return 200 with body. Treat 2xx as success.
       const status = res && res.status ? res.status : (res && res.data && res.data.status ? res.data.status : null);
 
       if (status && Math.floor(status / 100) === 2) {
-        // success — remove locally and close modal
         onDeleted(customer.id);
         onClose();
         toast.success("Customer deleted successfully.");
         return;
       }
 
-      // if we get here, request didn't throw but returned unexpected status — still attempt to remove
       console.warn("DELETE returned non-2xx status:", res);
       onDeleted(customer.id);
       onClose();
       toast.success("Customer removed.");
     } catch (err) {
-      // network / server error
       console.error("DELETE failed:", err);
 
-      // If server actually deleted but responded oddly (rare), still remove locally:
       const maybeDeleted =
         err?.response?.status === 404
         || (err?.response?.status >= 200 && err?.response?.status < 300);
@@ -343,44 +343,46 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
         return;
       }
 
-      // Otherwise ask user whether to remove locally anyway.
       if (window.confirm("Failed to delete on server. Remove locally anyway?")) {
-        // remove local unsynced record if present
         if (String(customer.id).startsWith("temp-")) removeUnsyncedFromStorage(customer.id);
         onDeleted(customer.id);
         onClose();
         toast.success("Customer removed locally.");
       } else {
-        // user chose not to remove locally — keep UI as-is
         toast.info("Delete cancelled.");
       }
     }
   }
 
   async function handleUpdate(ev) {
-    ev.preventDefault();
-    if (!form.name.trim() || !form.email.includes("@")) {
-      // replaced alert with toast
-      toast.error("Please provide a valid name and email.");
-      return;
-    }
+  ev.preventDefault();
+  if (!form.name.trim() || !form.email.includes("@")) {
+    toast.error("Please provide a valid name and email.");
+    return;
+  }
 
-    const payload = {
-      ...customer,
-      name: form.name,
-      email: form.email,
-      phone: form.phone,
-      address: form.address,
-    };
+  const payload = {
+    ...customer,
+    name: form.name,
+    email: form.email,
+    phone: form.phone,
+    address: form.address,
+  };
 
-    // Fast UX: update UI immediately and close modal
-    setCustomer(payload);
-    onUpdated(payload);
-    setEditMode(false);
-    onClose();
-    toast.success("Customer updated (local).");
+  // Fast UX: update UI immediately and close modal
+  setCustomer(payload);
+  onUpdated(payload);
+  setEditMode(false);
+  onClose();
+  toast.success("Customer updated (local).");
 
-    // Background sync: attempt PUT and reconcile when response arrives
+  // Background sync: attempt PUT with retries and reconcile when response arrives
+  const maxAttempts = 3;
+  let attempt = 0;
+  let lastErr = null;
+
+  async function tryPut() {
+    attempt++;
     try {
       const res = await axiosAPI.put(`/customer/${customer.id}`, payload);
       const serverRaw = unwrap(res) || res.data;
@@ -388,24 +390,44 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
         const serverNormalized = normalizeCustomer(serverRaw) || serverRaw;
         onUpdated(serverNormalized);
         toast.success("Customer updated on server.");
+        return true;
       } else if (res && typeof res.status === "number" && res.status >= 200 && res.status < 300) {
-        // 2xx without body — treat as success, keep optimistic payload
-        console.log("PUT returned 2xx with no body — keeping optimistic update.");
+        
         toast.success("Customer update acknowledged by server.");
+        return true;
       } else {
-        // unexpected shape — mark as unsynced
-        console.warn("PUT returned unexpected shape, marking local item as unsynced:", res);
-        onUpdated({ ...payload, __syncError: true });
-        toast.error("Server returned unexpected response — changes saved locally.");
+        console.warn("PUT returned unexpected shape on attempt", attempt, res);
+        lastErr = new Error("Unexpected PUT response");
+        return false;
       }
     } catch (err) {
-      // Network/server error: mark local item as unsynced (non-blocking) and log
-      console.warn("PUT failed in background — keeping local changes and marking as unsynced.", err);
-      onUpdated({ ...payload, __syncError: true });
-      toast.error("Failed to update on server — changes saved locally.");
+      lastErr = err;
+      if (err && err.code === "ECONNABORTED") {
+        console.warn(`PUT attempt ${attempt} timed out (ECONNABORTED).`);
+      } else {
+        console.warn(`PUT attempt ${attempt} failed:`, err);
+      }
+      return false;
     }
   }
-  // -------------------------------------------------------------------------------
+  while (attempt < maxAttempts) {
+    const ok = await tryPut();
+    if (ok) return;
+    const wait = 500 * (2 ** (attempt - 1));
+    await new Promise(r => setTimeout(r, wait));
+  }
+  console.warn("PUT failed in background after retries — keeping local changes and marking as unsynced.", lastErr);
+  const localCopy = { ...payload, __syncError: true };
+  onUpdated(localCopy);
+
+  try {
+    upsertUnsyncedToStorage(localCopy);
+  } catch (e) {
+    console.warn("Failed to persist unsynced update", e);
+  }
+
+}
+
 
   return (
     <div className="cm-modal-backdrop" role="dialog" aria-modal="true" onClick={() => { if (!submitting) onClose(); }}>
@@ -415,7 +437,6 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
         <div className="cm-header">
           <div className="cm-banner" />
           <div className="cm-avatar-large-wrap">
-            {/* Render avatar only if provided (no default fallback) */}
             {customer.avatar ? (
               <img src={customer.avatar} alt={customer.name} className="cm-avatar-large" />
             ) : (
@@ -565,10 +586,9 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
     if (Object.keys(eobj).length) return;
 
     setSubmitting(true);
-    // NOTE: avatar intentionally set to null — no default image for new customers
     const payload = {
       name: name.trim(),
-      avatar: null, // <-- changed: do not assign default pravatar URL
+      avatar: null,
       orders: 0,
       balance: "$0",
       status: "Active",
@@ -579,35 +599,62 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
       lastOnline: "Now",
     };
 
-    // create a temporary local representation (fast UI)
     const tempId = `temp-${Date.now()}`;
     const tempItem = { id: tempId, ...payload, __local: true, __createdAt: Date.now() };
 
-    // Immediately add to UI and persist locally so it survives refresh
     onAdd(tempItem);
     addUnsyncedToStorage(tempItem);
-    onClose(); // close modal quickly for instant UX
-    toast.success("Customer added locally.");
+    onClose();
+    toast.success("Customer added locally.", {
+      containerId: "center",
+      toastClassName: "react-toastify-center",
+      autoClose: 2000,
+    });
 
-    // Sync in background (non-blocking)
     try {
-      const res = await axiosAPI.post("/customer", payload); // POST /customer
-      const created = unwrap(res) || res.data || payload;
-      const normalized = normalizeCustomer(created) || created;
-      // call onSync to replace temp item with server item
-      if (onSync) onSync(tempId, normalized);
-      removeUnsyncedFromStorage(tempId);
-      console.log("Customer created on server:", created);
-      toast.success("Customer created on server.");
+      const res = await postWithRetry("/customer", payload, 3, 1000);
+
+      const created = unwrap(res) || res.data || null;
+      const normalized = created ? (normalizeCustomer(created) || created) : null;
+
+      if (normalized && (normalized.id || normalized._id)) {
+        if (onSync) onSync(tempId, normalized);
+        removeUnsyncedFromStorage(tempId);
+        console.log("Customer created on server:", created);
+        toast.success("Customer created on server.", {
+          containerId: "center",
+          toastClassName: "react-toastify-center",
+          autoClose: 1800,
+        });
+      } else if (res && typeof res.status === "number" && res.status >= 200 && res.status < 300) {
+        removeUnsyncedFromStorage(tempId);
+        console.log("Server acknowledged create request for temp:", tempId, "status:", res.status);
+        toast.success("Server acknowledged request.", {
+          containerId: "center",
+          toastClassName: "react-toastify-center",
+          autoClose: 1600,
+        });
+      } else {
+        console.warn("Unexpected POST response while creating:", res);
+        const mark = { ...tempItem, __syncError: true };
+        if (onSync) onSync(tempId, mark);
+        upsertUnsyncedToStorage(mark);
+        toast.info("Saved locally — server returned unexpected response.", {
+          containerId: "center",
+          toastClassName: "react-toastify-center",
+          autoClose: 3500,
+        });
+      }
     } catch (err) {
-      console.error("POST failed (optimistic flow):", err);
-      // mark local item with a sync error flag so you can show unsynced badge if desired
+      console.error("POST failed after retries (optimistic flow):", err, err?.response?.data || err?.message);
       if (onSync) onSync(tempId, { ...tempItem, __syncError: true });
-      // mark in storage too
       const arr = loadUnsyncedFromStorage().map(x => x.id === tempId ? { ...x, __syncError: true } : x);
       saveUnsyncedToStorage(arr);
-      toast.error("Failed to sync new customer to server — saved locally.");
-      // do not show blocking alert — user already saw the created card in UI
+      toast.info("Saved locally — will retry syncing in background.", {
+        containerId: "center",
+        toastClassName: "react-toastify-center",
+        autoClose: 3500,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -651,7 +698,6 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
             <input className="form-input phone-input" value={phone} onChange={(e)=>setPhone(e.target.value)} placeholder="PhoneNumber" />
           </div>
 
-          {/* -------- Add Address: text first, toggle after (per your request) -------- */}
           <label className="label toggle-row add-address-toggle" style={{ marginTop: 12, display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 8 }}>
             <span style={{ fontSize: 14, color: "rgba(94, 96, 99, 1)" }}>Add Address</span>
             <ToggleSwitch checked={addAddress} onChange={(v) => setAddAddress(v)} ariaLabel="Add address" />
@@ -679,7 +725,6 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
                 </select>
               </div>
 
-              {/* Billing Address heading + "Same as Customer Address" label with toggle after text */}
               <div style={{ marginTop: 10 }}>
                 <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 8, fontWeight: 600 }}>Billing Address</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -724,16 +769,12 @@ export default function CustomerManagement() {
   const [ordersMenuOpen, setOrdersMenuOpen] = useState(false);
   const ordersMenuRef = useRef(null);
   const gridRef = useRef(null);
-
-  // fetch server list and also load any unsynced temp items from localStorage
   async function fetchCustomers() {
     try {
       const res = await axiosAPI.get("/customer");
       console.log("API /customer raw response:", res);
       const data = unwrap(res);
       const serverList = Array.isArray(data) ? data : [];
-
-      // normalize server items to expected UI shape
       const normalizedServer = serverList.map(item => {
         const n = normalizeCustomer(item) || item;
         if (!n.id) {
@@ -741,13 +782,17 @@ export default function CustomerManagement() {
         }
         return n;
       });
-
-      // prepend unsynced temp items stored locally so they appear immediately
       const unsynced = loadUnsyncedFromStorage() || [];
-      setCustomers([...unsynced, ...normalizedServer]);
+      const unsyncedMap = new Map(unsynced.map(u => [String(u.id), u]));
+      const mergedServer = normalizedServer.map(s => {
+        const override = unsyncedMap.get(String(s.id));
+        return override ? override : s;
+      });
+      const pendingTemps = unsynced.filter(u => String(u.id).startsWith("temp-"))
+      setCustomers([...pendingTemps, ...mergedServer]);
     } catch (err) {
       console.error("GET /customer failed:", err);
-      toast.error("Failed to load customers from server. Showing local data.");
+      toast.info("Failed to load customers from server — showing local data.");
       const unsynced = loadUnsyncedFromStorage() || [];
       setCustomers([...unsynced, ...MOCK_CUSTOMERS]);
     }
@@ -755,8 +800,6 @@ export default function CustomerManagement() {
 
   useEffect(() => {
     fetchCustomers();
-
-    // Also attempt to sync any unsynced items in storage in background
     (async function trySyncStored() {
       const unsynced = loadUnsyncedFromStorage();
       if (!unsynced || !unsynced.length) return;
@@ -767,26 +810,40 @@ export default function CustomerManagement() {
             avatar: temp.avatar, orders: temp.orders, balance: temp.balance, status: temp.status,
             lastTransaction: temp.lastTransaction, lastOnline: temp.lastOnline,
           };
-          const r = await axiosAPI.post("/customer", payload);
-          const created = unwrap(r) || r.data || payload;
-          const normalized = normalizeCustomer(created) || created;
-          // replace temp in current state
-          setCustomers(prev => {
-            const idx = prev.findIndex(c => String(c.id) === String(temp.id));
-            if (idx === -1) return [normalized, ...prev];
-            const next = [...prev]; next[idx] = normalized; return next;
-          });
-          removeUnsyncedFromStorage(temp.id);
-          toast.success(`Synced queued customer: ${temp.name}`);
+          const r = await postWithRetry("/customer", payload, 3, 1000);
+          const created = unwrap(r) || r.data || null;
+          const normalized = created ? (normalizeCustomer(created) || created) : null;
+          if (normalized && (normalized.id || normalized._id)) {
+            setCustomers(prev => {
+              const idx = prev.findIndex(c => String(c.id) === String(temp.id));
+              if (idx === -1) return [normalized, ...prev];
+              const next = [...prev]; next[idx] = normalized; return next;
+            });
+            removeUnsyncedFromStorage(temp.id);
+            toast.success(`Synced queued customer: ${temp.name}`, {
+              containerId: "center",
+              toastClassName: "react-toastify-center",
+              autoClose: 1900,
+            });
+          } else if (r && typeof r.status === "number" && r.status >= 200 && r.status < 300) {
+            removeUnsyncedFromStorage(temp.id);
+            console.log("Server acknowledged queued create for temp:", temp.id, "status:", r.status);
+            toast.success("Server acknowledged queued customer.", {
+              containerId: "center",
+              toastClassName: "react-toastify-center",
+              autoClose: 1600,
+            });
+          } else {
+            console.warn("Unexpected response while syncing queued customer:", r);
+            const mark = { ...temp, __syncError: true };
+            upsertUnsyncedToStorage(mark);
+          }
         } catch (err) {
-          // leave it in storage for manual retry later
-          console.warn("Sync retry failed for", temp.id, err);
+          console.warn("Sync retry failed for", temp.id, err, err?.response?.data || err?.message);
         }
       }
     })();
   }, []);
-
-  // close orders menu when clicking outside
   useEffect(() => {
     function onDocClick(e) {
       if (!ordersMenuRef.current) return;
@@ -806,7 +863,6 @@ export default function CustomerManagement() {
       if (ordersFilter === "26+") return c.orders >= 26;
       return true;
     }
-
     return customers.filter((c) => {
       if (tab === "Active" && c.status !== "Active") return false;
       if (tab === "Blocked" && c.status !== "Blocked") return false;
@@ -824,11 +880,9 @@ export default function CustomerManagement() {
     const pages = Math.max(1, Math.ceil(filtered.length / perPage));
     if (page > pages) setPage(1);
   }, [filtered.length, perPage, page]);
-
   const pages = Math.max(1, Math.ceil(filtered.length / perPage));
   const start = (page - 1) * perPage;
   const paged = filtered.slice(start, start + perPage);
-
   function goPage(n) {
     const p = Math.max(1, Math.min(n, pages));
     setPage(p);
@@ -844,16 +898,12 @@ export default function CustomerManagement() {
       return n;
     });
   }
-
-  // handle optimistic add (temp item)
   function handleAdd(tempOrCreated) {
     setCustomers(prev => {
       return [tempOrCreated, ...prev];
     });
     setPage(1);
   }
-
-  // handle sync: replace temp item with server-confirmed object (or mark error)
   function handleSync(tempId, serverObj) {
     setCustomers(prev => {
       const idx = prev.findIndex(c => String(c.id) === String(tempId));
@@ -864,10 +914,13 @@ export default function CustomerManagement() {
       next[idx] = serverObj;
       return next;
     });
-    // If serverObj is a real server-created object, remove from storage
     if (serverObj && !serverObj.__syncError) {
       removeUnsyncedFromStorage(tempId);
-      toast.success("Local item replaced with server record.");
+      toast.success("Local item replaced with server record.", {
+        containerId: "center",
+        toastClassName: "react-toastify-center",
+        autoClose: 1800,
+      });
     }
   }
 
@@ -876,15 +929,58 @@ export default function CustomerManagement() {
   }
 
   function handleDeletedCustomer(id) {
-    // if it was a temp unsynced item, remove from storage too
     if (String(id).startsWith("temp-")) removeUnsyncedFromStorage(id);
     setCustomers(prev => prev.filter(c => String(c.id) !== String(id)));
   }
-
   function handleExportVisible() {
+    const keysSet = new Set();
+    filtered.forEach(item => {
+      if (!item || typeof item !== "object") return;
+      Object.keys(item).forEach(k => {
+        if (k.startsWith("__")) return;
+        if (typeof item[k] === "function") return;
+        keysSet.add(k);
+      });
+    });
+    const preferredOrder = [
+      "id", "name", "email", "phone", "address", "status",
+      "orders", "balance", "lastTransaction", "lastOnline", "avatar"
+    ];
+
+    const remaining = Array.from(keysSet).filter(k => !preferredOrder.includes(k));
+    remaining.sort(); 
+
+    const columns = [...preferredOrder.filter(k => keysSet.has(k)), ...remaining];
+
+    if (columns.length === 0) {
+      toast.info("No data to export.");
+      return;
+    }
+    const headerMap = {
+      id: "ID",
+      name: "Name",
+      email: "Email",
+      phone: "Phone",
+      address: "Address",
+      status: "Status",
+      orders: "Orders",
+      balance: "Balance",
+      lastTransaction: "Last Transaction",
+      lastOnline: "Last Online",
+      avatar: "Avatar",
+    };
+
+    const header = columns.map(c => headerMap[c] || c.replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase()));
     const rows = [
-      ["ID","Name","Orders","Balance","Status"],
-      ...filtered.map(c => [c.id, c.name, c.orders, c.balance, c.status])
+      header,
+      ...filtered.map(rowObj => columns.map(col => {
+        let val = rowObj[col];
+        if (val === null || val === undefined) return "";
+        if (typeof val === "object") {
+          try { return JSON.stringify(val); } catch (e) { return String(val); }
+        }
+        return String(val);
+      })),
     ];
     const csv = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -900,8 +996,6 @@ export default function CustomerManagement() {
         <CustomerTopbar />
         <div className="dashboard-content cm-page-root">
           <div className="cm-container">
-
-            {/* Top: search + actions */}
             <div className="cm-top">
               <div className="cm-top-row">
                 <div className="cm-search-wrap">
@@ -918,11 +1012,10 @@ export default function CustomerManagement() {
 
                   <div className="cm-add-column">
                     <button className="cm-btn cm-add-btn" onClick={() => setAddOpen(true)}>＋ Add Customer</button>
-<button className="cm-btn cm-filter-btn" onClick={() => setOrdersMenuOpen(o => !o)}>⚙️ Filters</button>                  </div>
+                    <button className="cm-btn cm-filter-btn" onClick={() => setOrdersMenuOpen(o => !o)}>⚙️ Filters</button>
+                  </div>
                 </div>
               </div>
-
-              {/* Tabs row + compact orders filter button (no "Orders" text) */}
               <div className="cm-tabs-row">
                 <div className="tabs-compact">
                   {["All","Active","Blocked"].map(t => (
@@ -1011,7 +1104,6 @@ export default function CustomerManagement() {
                     </div>
 
                     <div className="cm-avatar-wrap">
-                      {/* show avatar only if exists, otherwise keep empty circle */}
                       {c.avatar ? (
                         <img src={c.avatar} alt={c.name} className="cm-avatar" />
                       ) : (
@@ -1039,8 +1131,6 @@ export default function CustomerManagement() {
                 );
               })}
             </div>
-
-            {/* Footer / pagination */}
             <div className="cm-footer">
               <div className="summary">
                 Showing {filtered.length === 0 ? 0 : start + 1}–{Math.min(start + perPage, filtered.length)} of {filtered.length}
@@ -1068,8 +1158,6 @@ export default function CustomerManagement() {
           </div>
         </div>
       </div>
-
-      {/* Modals: pass initialCustomer so local/new items show instantly */}
       {profileOpenId && (
         <CustomerModal
           id={profileOpenId}
@@ -1080,9 +1168,19 @@ export default function CustomerManagement() {
         />
       )}
       {addOpen && <AddCustomerModal onClose={() => setAddOpen(false)} onAdd={handleAdd} onSync={handleSync} />}
-
-      {/* Toasts */}
-      <ToastContainer position="top-right" autoClose={3500} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
+      <ToastContainer
+        containerId="center"
+        position="top-center"
+        autoClose={3500}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        toastClassName="react-toastify-center"
+      />
     </div>
   );
 }
