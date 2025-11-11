@@ -9,7 +9,7 @@ import "react-toastify/dist/ReactToastify.css";
 
 const axiosAPI = axios.create({
   baseURL: "https://acc-in-touch-1.onrender.com/api",
-  timeout: 60000, 
+  timeout: 10000,
   headers: {
     "Content-Type": "application/json",
   },

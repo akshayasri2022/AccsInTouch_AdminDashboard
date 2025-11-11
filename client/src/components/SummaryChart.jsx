@@ -125,8 +125,144 @@ export default function SummaryChart({ orders = [], timeRange = '7' }) {
     return null;
   };
 
+  // Dropdown styles
+  const dropdownStyle = {
+    padding: '4px 8px',
+    fontSize: '12px',
+    border: '1px solid #e2e8f0',
+    borderRadius: '6px',
+    background: 'white',
+    color: '#64748b',
+    cursor: 'pointer',
+    outline: 'none',
+    transition: 'all 0.2s'
+  };
+
   return (
     <div style={{ width: "100%", height: 220 }}>
+      <style>
+        {`
+          /* Dropdown Button */
+          .stats-dropdown {
+            padding: 6px 12px;
+            font-size: 13px;
+            font-weight: 500;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+            color: #475569;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+          }
+          
+          .stats-dropdown:hover {
+            border-color: #cbd5e1;
+            background: #f8fafc;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+          }
+          
+          .stats-dropdown:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+          }
+          
+          .stats-dropdown:active {
+            transform: translateY(1px);
+          }
+
+          /* Dropdown Container */
+          .dropdown-container {
+            position: relative;
+            display: inline-block;
+          }
+
+          /* Dropdown Menu */
+          .dropdown-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            right: 0;
+            min-width: 160px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+            padding: 4px;
+            z-index: 50;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-8px);
+            transition: all 0.2s ease;
+          }
+
+          .dropdown-menu.open {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+          }
+
+          /* Dropdown Items */
+          .dropdown-item {
+            padding: 8px 12px;
+            font-size: 13px;
+            color: #475569;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+          }
+
+          .dropdown-item:hover {
+            background: #f1f5f9;
+            color: #1e293b;
+          }
+
+          .dropdown-item.active {
+            background: #eef2ff;
+            color: #4f46e5;
+            font-weight: 500;
+          }
+
+          .dropdown-item:active {
+            transform: scale(0.98);
+          }
+
+          /* Dropdown Divider */
+          .dropdown-divider {
+            height: 1px;
+            background: #e2e8f0;
+            margin: 4px 0;
+          }
+
+          /* Dropdown Icon */
+          .dropdown-icon {
+            width: 16px;
+            height: 16px;
+            transition: transform 0.2s ease;
+          }
+
+          .stats-dropdown.open .dropdown-icon {
+            transform: rotate(180deg);
+          }
+
+          /* Dropdown Label */
+          .dropdown-label {
+            font-size: 11px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 8px 12px 4px 12px;
+            font-weight: 600;
+          }
+        `}
+      </style>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart 
           data={chartData} 

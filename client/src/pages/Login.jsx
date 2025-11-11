@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import axios from "axios";
@@ -11,6 +11,24 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Clear form fields when component mounts (after logout)
+  useEffect(() => {
+    setEmail("");
+    setPassword("");
+    setError("");
+    setShowPassword(false);
+  }, []);
+
+  // Check if already authenticated, redirect to dashboard
+  useEffect(() => {
+    const isAuthenticated = localStorage.getItem("isAuthenticated");
+    const token = localStorage.getItem("token");
+    
+    if (isAuthenticated === "true" && token) {
+      navigate("/adminDashboard");
+    }
+  }, [navigate]);
 
   // Validation
   const validate = () => {
@@ -36,7 +54,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await axios.post("http://localhost:25186/api/login", {
+      const response = await axios.post("https://acc-in-touch-1.onrender.com/api/login", {
         email: email.trim(),
         password,
       });
@@ -74,7 +92,7 @@ export default function Login() {
 
   return (
     <div className="login-page">
-      <form className="login-card" onSubmit={handleSubmit} noValidate>
+      <form className="login-card" onSubmit={handleSubmit} noValidate autoComplete="off">
         <h2 className="login-title">Welcome back</h2>
 
         {error && <div className="login-error">{error}</div>}
@@ -87,6 +105,7 @@ export default function Login() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="john@example.com"
             className="input"
+            autoComplete="off"
             required
           />
         </label>
@@ -100,6 +119,7 @@ export default function Login() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter password"
               className="input password-input"
+              autoComplete="new-password"
               required
             />
             <span
