@@ -13,7 +13,7 @@ import "../styles/Dashboard.css";
 import "../styles/StatsCard.css";
 import "../styles/Panels.css";
 
-const API_URL = 'http://localhost:25186/api';
+const API_URL = 'https://acc-in-touch-1.onrender.com/api';
 
 export default function Dashboard() {
   const [customers, setCustomers] = useState([]);

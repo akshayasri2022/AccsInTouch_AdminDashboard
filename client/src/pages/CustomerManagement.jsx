@@ -11,7 +11,7 @@ import "react-toastify/dist/ReactToastify.css";
    Axios instance / config
    ---------------------- */
 const axiosAPI = axios.create({
-  baseURL: "http://localhost:25186/api",
+  baseURL: "https://acc-in-touch-1.onrender.com/api",
   timeout: 10000,
   headers: {
     "Content-Type": "application/json",

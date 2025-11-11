@@ -86,7 +86,7 @@ const OrderManagement = () => {
   const [ordersData, setOrdersData] = useState([]);
   const [tempCustomerId, setTempCustomerId] = useState(null);
 
-  const API_URL = 'http://localhost:25186/api';
+  const API_URL = 'https://acc-in-touch-1.onrender.com/api';
 
   const [newOrder, setNewOrder] = useState({
     custID: '',
