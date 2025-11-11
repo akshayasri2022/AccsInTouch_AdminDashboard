@@ -10,6 +10,8 @@ import { FaShoppingCart, FaUsers, FaBox } from "react-icons/fa";
  *  - topMeta: string
  *  - meta: [{ label, value, extra? }]
  *  - variant: 'cart' | 'customers' | 'orders'
+ *  - timeFilter: string
+ *  - onTimeFilterChange: function
  */
 export default function StatsCard({
   title,
@@ -18,6 +20,8 @@ export default function StatsCard({
   topMeta,
   meta = [],
   variant = "orders",
+  timeFilter = "all",
+  onTimeFilterChange,
 }) {
   const iconMap = {
     cart: <FaShoppingCart />,
@@ -34,11 +38,29 @@ export default function StatsCard({
   // avoid rendering topMeta if same label exists in meta
   const showTopMeta = topMeta && !meta.some((m) => m.label === topMeta);
 
+  // Handle dropdown change with logging
+  const handleFilterChange = (e) => {
+    const newValue = e.target.value;
+    console.log(`StatsCard ${title} - Filter changed to:`, newValue);
+    
+    if (onTimeFilterChange) {
+      onTimeFilterChange(newValue);
+    }
+  };
+
   return (
     <div className={`stats-card stats-${variant}`}>
       <div className="stats-top">
         <div className="icon-wrap">{icon}</div>
-        
+        <select 
+          className="stats-dropdown"
+          value={timeFilter}
+          onChange={handleFilterChange}
+        >
+          <option value="all">All Time</option>
+          <option value="week">Last 7 Days</option>
+          <option value="month">Last 30 Days</option>
+        </select>
       </div>
 
       <div className="stats-content">

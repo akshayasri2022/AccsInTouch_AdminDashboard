@@ -22,6 +22,11 @@ export default function Dashboard() {
   const [error, setError] = useState(null);
   const [orderFilter, setOrderFilter] = useState('all');
   const [timeRange, setTimeRange] = useState('7');
+  
+  // Individual time filters for each stats card
+  const [cartTimeFilter, setCartTimeFilter] = useState('all');
+  const [customersTimeFilter, setCustomersTimeFilter] = useState('all');
+  const [ordersTimeFilter, setOrdersTimeFilter] = useState('all');
 
   // Helper to get auth headers
   const getAuthHeaders = () => {
@@ -33,14 +38,93 @@ export default function Dashboard() {
     };
   };
 
+  // FIXED: Improved date filtering with proper date handling
+  const filterByTimePeriod = (data, timeFilter, dateField = 'orderDate') => {
+    if (timeFilter === 'all' || !data || data.length === 0) return data;
+
+    const now = new Date();
+    
+    // For week: last 7 days including today
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // 6 days ago + today = 7 days
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    // For month: last 30 days including today
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29); // 29 days ago + today = 30 days
+    thirtyDaysAgo.setHours(0, 0, 0, 0);
+
+    return data.filter(item => {
+      // Try multiple date field possibilities
+      let dateValue = item[dateField];
+      
+      // Fallback chain for different date field names
+      if (!dateValue && dateField === 'orderDate') {
+        dateValue = item.createdAt || item.date || item.created_at;
+      } else if (!dateValue && dateField === 'createdAt') {
+        dateValue = item.orderDate || item.date || item.created_at;
+      }
+      
+      if (!dateValue) {
+        console.warn('No date found for item:', item);
+        return false;
+      }
+      
+      // Parse date - handle both ISO strings and date objects
+      let itemDate;
+      try {
+        itemDate = new Date(dateValue);
+        
+        // Validate parsed date
+        if (isNaN(itemDate.getTime())) {
+          console.warn('Invalid date:', dateValue);
+          return false;
+        }
+      } catch (e) {
+        console.warn('Error parsing date:', dateValue, e);
+        return false;
+      }
+      
+      // Set to start of day for accurate comparison
+      const itemDateStart = new Date(itemDate);
+      itemDateStart.setHours(0, 0, 0, 0);
+      
+      const nowEnd = new Date(now);
+      nowEnd.setHours(23, 59, 59, 999);
+      
+      console.log(`Filtering ${dateField}:`, {
+        original: dateValue,
+        parsed: itemDateStart.toLocaleDateString(),
+        filter: timeFilter,
+        sevenDaysAgo: sevenDaysAgo.toLocaleDateString(),
+        thirtyDaysAgo: thirtyDaysAgo.toLocaleDateString(),
+        today: nowEnd.toLocaleDateString()
+      });
+      
+      if (timeFilter === 'week') {
+        const isInRange = itemDateStart >= sevenDaysAgo && itemDateStart <= nowEnd;
+        console.log(`Week filter: ${isInRange}`);
+        return isInRange;
+      } else if (timeFilter === 'month') {
+        const isInRange = itemDateStart >= thirtyDaysAgo && itemDateStart <= nowEnd;
+        console.log(`Month filter: ${isInRange}`);
+        return isInRange;
+      }
+      
+      return true;
+    });
+  };
+
   // Fetch customers from backend
   const fetchCustomers = async () => {
     try {
       const response = await axios.get(`${API_URL}/Customer`, getAuthHeaders());
-      setCustomers(Array.isArray(response.data) ? response.data : []);
+      const customerData = Array.isArray(response.data) ? response.data : [];
+      console.log('Customers fetched:', customerData.length);
+      setCustomers(customerData);
     } catch (error) {
       console.error('Error fetching customers:', error);
-      setError('Failed to fetch customers');
+      throw new Error('Failed to fetch customers');
     }
   };
 
@@ -48,10 +132,18 @@ export default function Dashboard() {
   const fetchOrders = async () => {
     try {
       const response = await axios.get(`${API_URL}/Order`, getAuthHeaders());
-      setOrders(Array.isArray(response.data) ? response.data : []);
+      const orderData = Array.isArray(response.data) ? response.data : [];
+      console.log('Orders fetched:', orderData.length);
+      
+      // Log sample for debugging
+      if (orderData.length > 0) {
+        console.log('Sample order:', orderData[0]);
+      }
+      
+      setOrders(orderData);
     } catch (error) {
       console.error('Error fetching orders:', error);
-      setError('Failed to fetch orders');
+      throw new Error('Failed to fetch orders');
     }
   };
 
@@ -59,52 +151,152 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      await Promise.all([fetchCustomers(), fetchOrders()]);
-      setLoading(false);
+      setError(null);
+      
+      try {
+        await Promise.all([fetchCustomers(), fetchOrders()]);
+      } catch (err) {
+        console.error('Data fetch error:', err);
+        setError(err.message || 'Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
     };
     
     fetchData();
   }, []);
 
-  // Calculate stats from fetched data
+  // FIXED: Normalize order status for consistent comparison
+  const normalizeStatus = (status) => {
+    if (!status) return '';
+    return status.toLowerCase().replace(/\s+/g, '');
+  };
+
+  // FIXED: Better status checking
+  const isCompletedStatus = (status) => {
+    const normalized = normalizeStatus(status);
+    return ['completed', 'delivered'].includes(normalized);
+  };
+
+  const isPendingStatus = (status) => {
+    const normalized = normalizeStatus(status);
+    return ['pending', 'confirmed', 'packed', 'shipped', 'outfordelivery'].includes(normalized);
+  };
+
+  // Calculate stats from fetched data with time filters
   const calculateStats = () => {
-    const totalCustomers = customers.length;
-    const activeCustomers = customers.filter(c => c.status === 'Active').length;
+    // Filter data based on respective time filters
+    const filteredCustomers = filterByTimePeriod(customers, customersTimeFilter, 'createdAt');
+    const filteredOrdersForCart = filterByTimePeriod(orders, cartTimeFilter, 'orderDate');
+    const filteredOrdersForStats = filterByTimePeriod(orders, ordersTimeFilter, 'orderDate');
+
+    console.log('Stats Calculation:', {
+      customersTimeFilter,
+      totalCustomers: customers.length,
+      filteredCustomers: filteredCustomers.length,
+      cartTimeFilter,
+      totalOrders: orders.length,
+      filteredOrdersForCart: filteredOrdersForCart.length,
+      ordersTimeFilter,
+      filteredOrdersForStats: filteredOrdersForStats.length
+    });
+
+    // Customer stats - FIXED: Use actual customer status from backend
+    const totalCustomers = filteredCustomers.length;
+    const activeCustomers = filteredCustomers.filter(c => {
+      // Check multiple possible status field names from backend
+      const status = c.status || c.customerStatus || c.Status || '';
+      const statusLower = status.toString().toLowerCase();
+      
+      // Active includes: 'active', 'Active', or any non-blocked status
+      return statusLower === 'active' || (statusLower !== 'blocked' && statusLower !== 'inactive');
+    }).length;
     
-    const totalOrders = orders.length;
+    // Calculate customer growth based on filter
+    let customerGrowth = '0%';
+    if (customersTimeFilter !== 'all') {
+      const allTimeCustomers = customers.length;
+      if (allTimeCustomers > 0) {
+        const growthPercent = ((totalCustomers / allTimeCustomers) * 100).toFixed(2);
+        customerGrowth = `+${growthPercent}%`;
+      }
+    } else {
+      // For "all time", calculate based on recent additions
+      const recentCustomers = filterByTimePeriod(customers, 'month', 'createdAt').length;
+      const olderCustomers = customers.length - recentCustomers;
+      if (olderCustomers > 0) {
+        const growthPercent = ((recentCustomers / olderCustomers) * 100).toFixed(2);
+        customerGrowth = `+${growthPercent}%`;
+      }
+    }
+    
+    // Order stats
+    const totalOrders = filteredOrdersForStats.length;
     
     // Completed: only Completed and Delivered
-    const completedOrders = orders.filter(o => {
-      const statusLower = o.orderStatus?.toLowerCase() || '';
-      return ['completed', 'delivered'].includes(statusLower);
-    }).length;
+    const completedOrders = filteredOrdersForStats.filter(o => 
+      isCompletedStatus(o.orderStatus)
+    ).length;
     
     // Pending: everything except Completed and Delivered
-    const pendingOrders = orders.filter(o => {
-      const statusLower = o.orderStatus?.toLowerCase() || '';
-      return !['completed', 'delivered'].includes(statusLower);
-    }).length;
+    const pendingOrders = filteredOrdersForStats.filter(o => 
+      !isCompletedStatus(o.orderStatus)
+    ).length;
 
-    // Calculate abandoned cart (placeholder calculation - adjust based on your logic)
-    const abandonedCartPercentage = totalOrders > 0 
-      ? Math.round((pendingOrders / totalOrders) * 100) 
+    console.log('Order Status Breakdown:', {
+      total: totalOrders,
+      completed: completedOrders,
+      pending: pendingOrders,
+      statusSamples: filteredOrdersForStats.slice(0, 3).map(o => ({
+        id: o.id,
+        status: o.orderStatus,
+        isCompleted: isCompletedStatus(o.orderStatus)
+      }))
+    });
+
+    // Calculate abandoned cart based on filtered orders
+    const cartPendingOrders = filteredOrdersForCart.filter(o => 
+      !isCompletedStatus(o.orderStatus)
+    ).length;
+    
+    const cartTotalOrders = filteredOrdersForCart.length;
+    const abandonedCartPercentage = cartTotalOrders > 0 
+      ? Math.round((cartPendingOrders / cartTotalOrders) * 100) 
       : 0;
+
+    // Calculate order completion growth
+    let completedGrowth = '0%';
+    if (ordersTimeFilter !== 'all' && orders.length > 0) {
+      const allTimeCompleted = orders.filter(o => isCompletedStatus(o.orderStatus)).length;
+      if (allTimeCompleted > 0) {
+        const growthPercent = ((completedOrders / allTimeCompleted) * 100).toFixed(2);
+        completedGrowth = `+${growthPercent}%`;
+      }
+    } else {
+      const recentCompleted = filterByTimePeriod(orders, 'month', 'orderDate')
+        .filter(o => isCompletedStatus(o.orderStatus)).length;
+      const olderCompleted = orders.filter(o => isCompletedStatus(o.orderStatus)).length - recentCompleted;
+      if (olderCompleted > 0) {
+        const growthPercent = ((recentCompleted / olderCompleted) * 100).toFixed(2);
+        completedGrowth = `+${growthPercent}%`;
+      }
+    }
 
     return {
       customers: {
         total: totalCustomers,
         active: activeCustomers,
-        growth: totalCustomers > 0 ? '+15.80%' : '0%' // You can calculate actual growth if you have historical data
+        growth: customerGrowth
       },
       orders: {
         total: totalOrders,
         pending: pendingOrders,
         completed: completedOrders,
-        completedGrowth: '+0.00%' // Calculate based on your business logic
+        completedGrowth: completedGrowth
       },
       abandonedCart: {
         percentage: `${abandonedCartPercentage}%`,
-        count: pendingOrders,
+        count: cartPendingOrders,
         growth: '+0.00%'
       }
     };
@@ -121,6 +313,8 @@ export default function Dashboard() {
       topMeta: "Customers",
       meta: [{ label: "Customers", value: String(stats.abandonedCart.count) }],
       variant: "cart",
+      timeFilter: cartTimeFilter,
+      onTimeFilterChange: setCartTimeFilter,
     },
     {
       title: "Customers",
@@ -129,6 +323,8 @@ export default function Dashboard() {
       topMeta: "Active",
       meta: [{ label: "Active", value: String(stats.customers.active) }],
       variant: "customers",
+      timeFilter: customersTimeFilter,
+      onTimeFilterChange: setCustomersTimeFilter,
     },
     {
       title: "All Orders",
@@ -140,6 +336,8 @@ export default function Dashboard() {
         { label: "Completed", value: String(stats.orders.completed), extra: stats.orders.completedGrowth },
       ],
       variant: "orders",
+      timeFilter: ordersTimeFilter,
+      onTimeFilterChange: setOrdersTimeFilter,
     },
   ];
 
@@ -181,7 +379,9 @@ export default function Dashboard() {
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center',
-            height: '60vh'
+            flexDirection: 'column',
+            height: '60vh',
+            gap: '16px'
           }}>
             <div style={{
               background: '#fee2e2',
@@ -194,6 +394,20 @@ export default function Dashboard() {
             }}>
               {error}
             </div>
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                padding: '12px 24px',
+                background: '#4f46e5',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: '600',
+                cursor: 'pointer'
+              }}
+            >
+              Retry
+            </button>
           </div>
         </div>
       </div>
@@ -236,7 +450,7 @@ export default function Dashboard() {
               </div>
 
               <div className="right-col">
-                <div className="panel orders-panel">
+                <div className="panel orders-panel" style={{width:'25.3vw'}}>
                   <div className="panel-head">
                     <h3>Recent Orders</h3>
                     <div style={{ display: 'flex', gap: '8px' }}>
@@ -255,7 +469,36 @@ export default function Dashboard() {
                       >
                         All
                       </button>
-                     
+                      <button
+                        onClick={() => setOrderFilter('completed')}
+                        style={{
+                          padding: '4px 10px',
+                          fontSize: '12px',
+                          fontWeight: orderFilter === 'completed' ? '600' : '400',
+                          color: orderFilter === 'completed' ? '#6366f1' : '#94a3b8',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          transition: 'color 0.2s'
+                        }}
+                      >
+                        Completed
+                      </button>
+                      <button
+                        onClick={() => setOrderFilter('pending')}
+                        style={{
+                          padding: '4px 10px',
+                          fontSize: '12px',
+                          fontWeight: orderFilter === 'pending' ? '600' : '400',
+                          color: orderFilter === 'pending' ? '#6366f1' : '#94a3b8',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          transition: 'color 0.2s'
+                        }}
+                      >
+                        Pending
+                      </button>
                     </div>
                   </div>
                   <OrdersList orders={orders} filter={orderFilter} />
