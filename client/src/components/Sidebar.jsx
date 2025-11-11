@@ -15,7 +15,7 @@ export default function Sidebar() {
 
       <nav className="sidebar-nav">
         <NavLink
-          to="/dashboard"
+          to="/adminDashboard"
           className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
         >
           <FaChartPie /> <span>Dashboard</span>
@@ -42,12 +42,12 @@ export default function Sidebar() {
           <FaUsers /> <span>Customer Management</span>
         </NavLink>
 
-        <NavLink
+        {/* <NavLink
           to="/reports"
           className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
         >
           <FaFileAlt /> <span>Reports</span>
-        </NavLink>
+        </NavLink> */}
       </nav>
     </aside>
   );
