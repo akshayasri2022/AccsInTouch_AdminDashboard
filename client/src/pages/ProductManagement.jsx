@@ -161,10 +161,10 @@ export default function ProductManagement() {
     if (!matchesSearch) return false;
 
     // Tab-based filters (case-insensitive comparison)
-    const tabKey = (tab || "").toString().trim().toLowerCase();
-    if (tabKey === "outofstock" && prodStatus !== "outofstock") return false;
-    if (tabKey === "lowstock" && Number(product.productQuantity) >= 10) return false;
-    if (tabKey === "draft" && prodStatus !== "draft") return false;
+const tabKey = (tab || "").toString().trim().toLowerCase();
+if (tabKey === "outofstock" && prodStatus !== "outofstock") return false;
+if (tabKey === "lowstock" && prodStatus !== "lowstock") return false;
+if (tabKey === "draft" && prodStatus !== "draft") return false;
 
     // Dropdown date filter (Last 7 or 30 days)
     if (filterStatus === "7days") {
@@ -285,7 +285,7 @@ export default function ProductManagement() {
                     className={`tab ${tab === "lowstock" ? "active" : ""}`}
                     onClick={() => setTab("lowstock")}
                   >
-                    Low Stock
+                    Lowstock
                   </button>
                   <button
                     className={`tab ${tab === "draft" ? "active" : ""}`}

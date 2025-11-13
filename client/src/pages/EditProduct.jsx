@@ -6,44 +6,30 @@ import axios from "axios";
 import "../styles/AddProductForm.css";
 import "../styles/EditProduct.css";
 
-const LS_PROD_KEY = "pm_cached_products_v1";
+// In-memory cache (replaces localStorage)
+let cachedProducts = [];
 
 function loadCachedProducts() {
-  try {
-    const raw = localStorage.getItem(LS_PROD_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch (e) {
-    console.warn("Failed to load cached products", e);
-    return [];
-  }
+  return cachedProducts || [];
 }
+
 function saveCachedProducts(arr) {
-  try {
-    localStorage.setItem(LS_PROD_KEY, JSON.stringify(arr || []));
-  } catch (e) {
-    console.warn("Failed to save cached products", e);
-  }
+  cachedProducts = arr || [];
 }
+
 function upsertCachedProduct(item) {
-  try {
-    const arr = loadCachedProducts();
-    const idx = arr.findIndex(p => String(p.id) === String(item.id));
-    if (idx === -1) arr.unshift(item);
-    else arr[idx] = { ...arr[idx], ...item };
-    saveCachedProducts(arr);
-  } catch (e) {
-    console.warn("Failed to upsert cached product", e);
-  }
+  const arr = loadCachedProducts();
+  const idx = arr.findIndex(p => String(p.id) === String(item.id));
+  if (idx === -1) arr.unshift(item);
+  else arr[idx] = { ...arr[idx], ...item };
+  saveCachedProducts(arr);
 }
+
 function removeCachedProduct(id) {
-  try {
-    const arr = loadCachedProducts().filter(p => String(p.id) !== String(id));
-    saveCachedProducts(arr);
-  } catch (e) {
-    console.warn("Failed to remove cached product", e);
-  }
+  const arr = loadCachedProducts().filter(p => String(p.id) !== String(id));
+  saveCachedProducts(arr);
 }
+
 function sanitizeImageUrls(urls = []) {
   return (urls || []).filter(u => typeof u === "string" && (/^https?:\/\//i).test(u));
 }
@@ -52,7 +38,7 @@ export default function EditProduct() {
   const { id } = useParams();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
-  const objectUrlsRef = useRef([]); // track object URLs to revoke on unmount
+  const objectUrlsRef = useRef([]);
 
   const [form, setForm] = useState({
     productName: "",
@@ -70,6 +56,7 @@ export default function EditProduct() {
     productTags: "",
     image_url: [],
     discountType: "0%",
+    isPhysical: false,
   });
 
   const [tags, setTags] = useState([]);
@@ -88,56 +75,42 @@ export default function EditProduct() {
         );
         const data = resp.data || {};
 
-        // prefer locally cached pending update if present
         const cached = loadCachedProducts().find(p => String(p.id) === String(id));
         const final = cached && cached.__pendingUpdate ? { ...data, ...cached } : data;
+
+        // Handle image_url - convert from backend format {url: "..."} to array
+        let imageUrls = [];
+        if (final.image_url) {
+          if (typeof final.image_url === 'object' && final.image_url.url) {
+            imageUrls = [final.image_url.url];
+          } else if (Array.isArray(final.image_url)) {
+            imageUrls = final.image_url;
+          }
+        }
 
         setForm({
           productName: final.productName || "",
           productDescription: final.productDescription || "",
-          basicPricing:
-            final.basicPricing !== undefined && final.basicPricing !== null
-              ? String(final.basicPricing)
-              : "",
+          basicPricing: final.basicPricing !== undefined && final.basicPricing !== null ? String(final.basicPricing) : "",
           productSKU: final.productSKU || "",
           productBarcode: final.productBarcode || "",
-          productQuantity:
-            final.productQuantity !== undefined && final.productQuantity !== null
-              ? String(final.productQuantity)
-              : "",
+          productQuantity: final.productQuantity !== undefined && final.productQuantity !== null ? String(final.productQuantity) : "",
           productCategory: final.productCategory || "",
           productStatus: final.productStatus || "draft",
-          productWeight:
-            final.productWeight !== undefined && final.productWeight !== null
-              ? String(final.productWeight)
-              : "",
-          productHeight:
-            final.productHeight !== undefined && final.productHeight !== null
-              ? String(final.productHeight)
-              : "",
-          productLength:
-            final.productLength !== undefined && final.productLength !== null
-              ? String(final.productLength)
-              : "",
-          productWidth:
-            final.productWidth !== undefined && final.productWidth !== null
-              ? String(final.productWidth)
-              : "",
-          productTags:
-            typeof final.productTags === "string"
-              ? final.productTags
-              : Array.isArray(final.productTags)
-              ? final.productTags.join(", ")
-              : "",
-          image_url: Array.isArray(final.image_url) ? final.image_url : [],
-          discountType: "0%",
+          productWeight: final.productWeight !== undefined && final.productWeight !== null ? String(final.productWeight) : "",
+          productHeight: final.productHeight !== undefined && final.productHeight !== null ? String(final.productHeight) : "",
+          productLength: final.productLength !== undefined && final.productLength !== null ? String(final.productLength) : "",
+          productWidth: final.productWidth !== undefined && final.productWidth !== null ? String(final.productWidth) : "",
+          productTags: typeof final.productTags === "string" ? final.productTags : Array.isArray(final.productTags) ? final.productTags.join(", ") : "",
+          image_url: imageUrls,
+          discountType: final.discountType || "0%",
+          isPhysical: final.isPhysical || false,
         });
       } catch (err) {
         if (axios.isCancel(err) || err.name === "CanceledError") {
           console.log("Fetch canceled.");
         } else {
           console.error("Fetch product error:", err);
-          // fallback to cached version if network fetch fails
           const cached = loadCachedProducts().find(p => String(p.id) === String(id));
           if (cached) {
             setForm({
@@ -155,7 +128,8 @@ export default function EditProduct() {
               productWidth: cached.productWidth ? String(cached.productWidth) : "",
               productTags: typeof cached.productTags === "string" ? cached.productTags : "",
               image_url: Array.isArray(cached.image_url) ? cached.image_url : [],
-              discountType: "0%",
+              discountType: cached.discountType || "0%",
+              isPhysical: cached.isPhysical || false,
             });
           } else {
             alert("Failed to load product. See console for details.");
@@ -171,7 +145,6 @@ export default function EditProduct() {
     return () => {
       controller.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -222,7 +195,7 @@ export default function EditProduct() {
       .filter(Boolean);
 
     setForm((p) => ({ ...p, image_url: [...(p.image_url || []), ...previews] }));
-    e.target.value = ""; // allow re-selecting same file
+    e.target.value = "";
   }
 
   function handleRemoveImage(index) {
@@ -243,10 +216,13 @@ export default function EditProduct() {
       alert("Product name is required.");
       return false;
     }
+    if (!form.productCategory) {
+      alert("Product category is required.");
+      return false;
+    }
     return true;
   };
 
- // ...existing code...
   async function handleSave(e) {
     e?.preventDefault?.();
     if (saving) return;
@@ -254,7 +230,6 @@ export default function EditProduct() {
 
     setSaving(true);
 
-    // If user added local blob previews, warn and stop — blob:// URLs cannot be POSTed as-is
     const hasLocalBlobs = (form.image_url || []).some(u => typeof u === "string" && u.startsWith("blob:"));
     if (hasLocalBlobs) {
       alert(
@@ -265,84 +240,55 @@ export default function EditProduct() {
       return;
     }
 
-    const payload = {
-      productName: form.productName,
-      productDescription: form.productDescription,
-      basicPricing: Number(form.basicPricing) || 0,
-      productSKU: form.productSKU,
-      productBarcode: form.productBarcode,
-      productQuantity: Number(form.productQuantity) || 0,
-      productCategory: form.productCategory,
-      productStatus: form.productStatus,
-      productWeight: Number(form.productWeight) || 0,
-      productHeight: Number(form.productHeight) || 0,
-      productLength: Number(form.productLength) || 0,
-      productWidth: Number(form.productWidth) || 0,
-      productTags: form.productTags,
-      // only send remote URLs
-      image_url: sanitizeImageUrls(form.image_url),
-    };
-
-    // optimistic local cache so refresh shows edits
-    upsertCachedProduct({ id, ...payload, __pendingUpdate: true, __updatedAt: Date.now() });
-
-    console.log("Sending payload:", payload);
-
     try {
+      // Create FormData to match backend's parseRequestFiles expectation
+      const formData = new FormData();
+      
+      formData.append("productName", form.productName);
+      formData.append("productDescription", form.productDescription || "");
+      formData.append("basicPricing", form.basicPricing || "0");
+      formData.append("productSKU", form.productSKU || "");
+      formData.append("productBarcode", form.productBarcode || "");
+      formData.append("productQuantity", form.productQuantity || "0");
+      
+      // Fix: Match backend enum exactly - only capitalize "Earrings"
+      let category = form.productCategory;
+      if (category === "earrings") {
+        category = "Earrings";
+      }
+      // Other categories (scrunchies, claws, hairBows) stay lowercase/camelCase
+      formData.append("productCategory", category);
+      
+      formData.append("productStatus", form.productStatus || "draft");
+      formData.append("productWeight", form.productWeight || "0");
+      formData.append("productHeight", form.productHeight || "0");
+      formData.append("productLength", form.productLength || "0");
+      formData.append("productWidth", form.productWidth || "0");
+      formData.append("productTags", form.productTags || "");
+      formData.append("discountType", form.discountType || "0%");
+      formData.append("isPhysical", form.isPhysical ? "true" : "false");
+
+      // Handle image_url - send first URL only if exists
+      const cleanUrls = sanitizeImageUrls(form.image_url);
+      if (cleanUrls.length > 0) {
+        // Backend expects { url: "..." } format
+        formData.append("image_url", JSON.stringify({ url: cleanUrls[0] }));
+      }
+
+      console.log("Sending FormData to:", `https://acc-in-touch-1.onrender.com/api/Product/${id}`);
+
       const resp = await axios.put(
         `https://acc-in-touch-1.onrender.com/api/Product/${id}`,
-        payload,
-        { headers: { "Content-Type": "application/json" }, timeout: 20000 }
+        formData,
+        { 
+          headers: { "Content-Type": "multipart/form-data" },
+          timeout: 20000 
+        }
       );
 
       console.log("Update response:", resp?.status, resp?.data);
 
       if (resp && (resp.status === 200 || resp.status === 201)) {
-        if (resp.data && typeof resp.data === "object") {
-          const d = resp.data;
-          setForm((prev) => ({
-            ...prev,
-            productName: d.productName ?? prev.productName,
-            productDescription: d.productDescription ?? prev.productDescription,
-            basicPricing:
-              d.basicPricing !== undefined && d.basicPricing !== null
-                ? String(d.basicPricing)
-                : prev.basicPricing,
-            productSKU: d.productSKU ?? prev.productSKU,
-            productBarcode: d.productBarcode ?? prev.productBarcode,
-            productQuantity:
-              d.productQuantity !== undefined && d.productQuantity !== null
-                ? String(d.productQuantity)
-                : prev.productQuantity,
-            productCategory: d.productCategory ?? prev.productCategory,
-            productStatus: d.productStatus ?? prev.productStatus,
-            productWeight:
-              d.productWeight !== undefined && d.productWeight !== null
-                ? String(d.productWeight)
-                : prev.productWeight,
-            productHeight:
-              d.productHeight !== undefined && d.productHeight !== null
-                ? String(d.productHeight)
-                : prev.productHeight,
-            productLength:
-              d.productLength !== undefined && d.productLength !== null
-                ? String(d.productLength)
-                : prev.productLength,
-            productWidth:
-              d.productWidth !== undefined && d.productWidth !== null
-                ? String(d.productWidth)
-                : prev.productWidth,
-            productTags:
-              typeof d.productTags === "string"
-                ? d.productTags
-                : Array.isArray(d.productTags)
-                ? d.productTags.join(", ")
-                : prev.productTags,
-            image_url: Array.isArray(d.image_url) ? d.image_url : prev.image_url,
-          }));
-        }
-
-        // success — remove pending local cache and navigate
         removeCachedProduct(id);
         alert("Product updated successfully!");
         navigate("/ProductManagement");
@@ -356,20 +302,18 @@ export default function EditProduct() {
       if (err.response) {
         console.error("Server response data:", err.response.data);
         console.error("Server response status:", err.response.status);
-        alert(`Update failed (${err.response.status}): ${JSON.stringify(err.response.data)} — changes saved locally.`);
+        alert(`Update failed (${err.response.status}): ${JSON.stringify(err.response.data)}`);
       } else if (err.request) {
         console.error("No response received:", err.request);
-        alert("No response from server. Changes saved locally and will remain until server sync.");
+        alert("No response from server. Please check your connection.");
       } else {
         console.error("Request setup error:", err.message);
         alert(`Error: ${err.message}`);
       }
     } finally {
-      // ensure UI state is always reset
       setSaving(false);
     }
   }
-// ...existing code...
 
   function handleCancel() {
     if (saving) return;
@@ -523,10 +467,15 @@ export default function EditProduct() {
                       <label className="editproductlabel">Discount</label>
                       <select className="editproductselect" value={form.discountType} onChange={(e) => updateField("discountType", e.target.value)} disabled={saving}>
                         <option value="0%">0%</option>
+                        <option value="5%">5%</option>
                         <option value="10%">10%</option>
+                        <option value="15%">15%</option>
                         <option value="20%">20%</option>
+                        <option value="25%">25%</option>
                         <option value="30%">30%</option>
+                        <option value="35%">35%</option>
                         <option value="40%">40%</option>
+                        <option value="45%">45%</option>
                         <option value="50%">50%</option>
                       </select>
                     </div>
@@ -556,7 +505,12 @@ export default function EditProduct() {
                 <section className="editproductcard">
                   <h3 className="editproductcard-title">Shipping</h3>
                   <div className="editproductshipping-toggle">
-                    <input type="checkbox" id="physical" defaultChecked />
+                    <input 
+                      type="checkbox" 
+                      id="physical" 
+                      checked={form.isPhysical}
+                      onChange={(e) => updateField("isPhysical", e.target.checked)}
+                    />
                     <label htmlFor="physical">This is a physical product</label>
                   </div>
 
