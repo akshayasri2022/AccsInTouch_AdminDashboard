@@ -32,9 +32,9 @@ const ProductCreation = sequelize.define("Products", {
   productStatus: {
     type: DataTypes.ENUM(
       "inStock",
-      "lowStack",
+      "lowStock",
       "outOfStock",
-      "disscontinued",
+      "discontinued",
       "draft"
     ),
     allowNull: false,
