@@ -1,5 +1,5 @@
 import React from "react";
-import { FaBell, FaUserCircle } from "react-icons/fa";
+import { FiBell } from "react-icons/fi";
 import "../styles/TopbarShared.css";
 
 export default function Topbar() {
@@ -13,12 +13,14 @@ export default function Topbar() {
         <span className="acc-text">Acc-in-touch</span>
 
         <button className="icon-btn" title="Notifications">
-          <FaBell />
+          <FiBell />
         </button>
 
-        <button className="icon-btn" title="User Profile">
-          <FaUserCircle />
-        </button>
+        <img
+          src="https://i.pravatar.cc/40?img=3"
+          className="avatar-img"
+          alt="User"
+        />
       </div>
     </header>
   );

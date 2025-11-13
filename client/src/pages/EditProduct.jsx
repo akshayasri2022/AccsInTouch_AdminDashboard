@@ -1,3 +1,4 @@
+// src/pages/EditProduct.jsx
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
@@ -31,7 +32,58 @@ function removeCachedProduct(id) {
 }
 
 function sanitizeImageUrls(urls = []) {
-  return (urls || []).filter(u => typeof u === "string" && (/^https?:\/\//i).test(u));
+  return (urls || []).filter(u => typeof u === "string" && (/^(https?:\/\/|data:)/i).test(u));
+}
+
+// convert File -> dataURL (fallback only)
+function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => {
+      reader.abort();
+      reject(new Error("Failed to read file"));
+    };
+    reader.onload = () => {
+      resolve(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Compress image using canvas -> returns File (jpeg)
+function compressImageFile(file, maxWidth = 1200, quality = 0.75) {
+  return new Promise((resolve, reject) => {
+    if (!(file instanceof File)) return reject(new Error("Not a File"));
+    const img = new Image();
+    img.onerror = () => reject(new Error("Failed to load image for compression"));
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return reject(new Error("Canvas toBlob returned null"));
+          const compressedFile = new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", {
+            type: "image/jpeg",
+            lastModified: Date.now(),
+          });
+          resolve(compressedFile);
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read file for compression"));
+    reader.onload = () => {
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 export default function EditProduct() {
@@ -59,6 +111,7 @@ export default function EditProduct() {
     isPhysical: false,
   });
 
+  const [imageFiles, setImageFiles] = useState([]); // actual File objects (compressed)
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -74,7 +127,6 @@ export default function EditProduct() {
           { timeout: 12000, signal: controller.signal }
         );
         const data = resp.data || {};
-
         const cached = loadCachedProducts().find(p => String(p.id) === String(id));
         const final = cached && cached.__pendingUpdate ? { ...data, ...cached } : data;
 
@@ -178,11 +230,29 @@ export default function EditProduct() {
     fileInputRef.current?.click();
   }
 
-  function handleFilesSelected(e) {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
+  // NEW: compress selected files then store compressed files & previews
+  async function handleFilesSelected(e) {
+    const rawFiles = Array.from(e.target.files || []);
+    if (!rawFiles.length) return;
 
-    const previews = files
+    // compress files in parallel; fallback to original if compression fails
+    const compressedResults = await Promise.all(
+      rawFiles.map(async (f) => {
+        try {
+          const c = await compressImageFile(f, 1200, 0.75);
+          return c;
+        } catch (err) {
+          console.warn("Compression failed for", f.name, "— using original", err);
+          return f;
+        }
+      })
+    );
+
+    // Save compressed File objects
+    setImageFiles(prev => [...prev, ...compressedResults]);
+
+    // Create preview object URLs for UI
+    const previews = compressedResults
       .map((f) => {
         try {
           const url = URL.createObjectURL(f);
@@ -199,9 +269,19 @@ export default function EditProduct() {
   }
 
   function handleRemoveImage(index) {
+    // remove preview URL from image_url and remove corresponding File if present
     setForm((p) => {
       const newUrls = (p.image_url || []).filter((_, i) => i !== index);
       return { ...p, image_url: newUrls };
+    });
+
+    setImageFiles(prev => {
+      if (!prev || prev.length === 0) return prev;
+      if (index < prev.length) {
+        const newFiles = prev.filter((_, i) => i !== index);
+        return newFiles;
+      }
+      return prev;
     });
   }
 
@@ -298,6 +378,12 @@ export default function EditProduct() {
       }
     } catch (err) {
       console.error("Update error (full):", err);
+
+      if (err.code === "ECONNABORTED" || (err.message && err.message.includes("timeout"))) {
+        console.error("Request timed out:", err);
+        alert("Request timeout — the server took too long to respond. Changes are saved locally.");
+        return;
+      }
 
       if (err.response) {
         console.error("Server response data:", err.response.data);

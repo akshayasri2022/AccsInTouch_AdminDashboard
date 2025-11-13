@@ -6,12 +6,12 @@ import "../styles/AddProductForm.css";
 
 export default function AddProductForm({ onCancel, onProductAdded }) {
   const navigate = useNavigate();
-  
+
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [errorProducts, setErrorProducts] = useState("");
 
- // Form state
+  // Form state
   const [formData, setFormData] = useState({
     productName: "",
     productDescription: "",
@@ -27,7 +27,7 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
     productCategory: "",
     productTags: "",
     productStatus: "",
-    image_url:[],
+    image_url: [],
     isPhysical: false,
   });
 
@@ -37,14 +37,13 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
   const [loading, setLoading] = useState(false);
   const [popup, setPopup] = useState({ show: false, type: "", message: "" });
 
-
   const defaultImage = "https://cdn-icons-png.flaticon.com/512/7486/7486744.png";
 
-    useEffect(() => {
+  useEffect(() => {
     const fetchProducts = async () => {
       try {
         setLoadingProducts(true);
-        const res = await axios.get("https://acc-in-touch-1.onrender.com/api/Product"); // Change baseURL if needed
+        const res = await axios.get("https://acc-in-touch-1.onrender.com/api/Product");
         setProducts(res.data);
       } catch (err) {
         console.error("Error fetching products:", err);
@@ -57,23 +56,21 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
     fetchProducts();
   }, []);
 
-
   // Show popup
   const showPopup = (type, message) => {
     setPopup({ show: true, type, message });
   };
 
-
   // Close popup
   const closePopup = () => {
+    // capture type before closing so we can act on it reliably
+    const { type } = popup;
     setPopup({ show: false, type: "", message: "" });
-    if (popup.type === "success") {
-      setTimeout(() => {
-        navigate("/ProductManagement");
-      }, 100);
+    if (type === "success") {
+      // navigate immediately (no background waits)
+      navigate("/ProductManagement");
     }
   };
-
 
   // Handle input changes
   const handleChange = (e) => {
@@ -86,7 +83,6 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
-
 
   // Image upload
   const handleImageChange = (e) => {
@@ -109,46 +105,31 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
     }
   };
 
-  // Validate form - ADDED: status validation
-  // const validateForm = () => {
-  //   const newErrors = {};
-
-  //   // if (!formData.productName.trim()) newErrors.productName = "Product name is required";
-  //   // if (!formData.basicPricing || parseFloat(formData.basicPricing) <= 0) {
-  //   //   newErrors.basicPricing = "Base price is required";
-  //   // }
-  //   if (!formData.productCategory) newErrors.productCategory = "Category is required";
-  //   // if (!formData.productSKU.trim()) newErrors.productSKU = "SKU is required";
-  //   if (!formData.productQuantity || parseInt(formData.productQuantity) < 0) {
-  //     newErrors.productQuantity = "Quantity is required";
-  //   }
-  //   if (!formData.status) newErrors.status = "Product status is required"; // ADDED
-
-  //   setErrors(newErrors);
-  //   return Object.keys(newErrors).length === 0;
-  // };
-
-  // Handle form submission (Frontend only)
- const handleSubmit = async () => {
-    // if (!validateForm()) {
-    //   showPopup("error", "Please fill all mandatory fields");
-    //   return;
-    // }
-
+  // Handle form submission
+  const handleSubmit = async () => {
     try {
       setLoading(true);
       const data = new FormData();
 
-      // Append all form fields
+      // Append all form fields (handle arrays & files properly)
       Object.entries(formData).forEach(([key, value]) => {
-        data.append(key, value);
+        if (value === null || value === undefined) return;
+
+        // If the field is an array (like image_url), skip here — we'll append files explicitly
+        if (Array.isArray(value)) return;
+
+        // For booleans and numbers, convert to string (FormData stores strings/blobs)
+        if (typeof value === "boolean" || typeof value === "number") {
+          data.append(key, String(value));
+        } else {
+          data.append(key, value);
+        }
       });
 
-      // Append image if selected
-if (image) {
-  data.append("image_url", image); // ✅ must match backend field name
-}
-
+      // Append image file if selected (backend expects `image_url`)
+      if (image) {
+        data.append("image_url", image);
+      }
 
       // POST to backend API
       const res = await axios.post(
@@ -174,9 +155,18 @@ if (image) {
     navigate("/ProductManagement");
   };
 
+  // Helper to calculate final price using basicPricing and discountType
+  const finalPriceDisplay = () => {
+    const base = parseFloat(formData.basicPricing);
+    const discount = parseFloat(formData.discountType);
+    if (isNaN(base)) return "₹0.00";
+    if (isNaN(discount) || discount === 0) return `₹${base.toFixed(2)}`;
+    const finalPrice = base * (1 - discount / 100);
+    return `₹${finalPrice.toFixed(2)}`;
+  };
+
   return (
     <div className="addProductadd-product-container full-page">
-    
       {/* Popup Modal */}
       {popup.show && (
         <div className="addProductpopup-overlay" onClick={closePopup}>
@@ -244,19 +234,18 @@ if (image) {
           {/* General Info */}
           <section className="addProductcard">
             <h3 className="addProductcard-title">General Information</h3>
-            
+
             <div className="addProductform-row">
               <label className="addProductlabel">
                 Product Name <span className="addProductrequired">*</span>
               </label>
               <input 
-                className={`addProductinput ${errors.name ? 'error' : ''}`}
+                className={`addProductinput ${errors.productName ? 'error' : ''}`}
                 name="productName"
                 value={formData.productName}
                 onChange={handleChange}
                 placeholder="Type product name here…"
               />
-              {/* {errors.name && <span className="addProducterror-text">{errors.name}</span>} */}
             </div>
 
             <div className="addProductform-row">
@@ -297,14 +286,13 @@ if (image) {
               <label htmlFor="image-upload" className="addProductbtn outline small">
                 Add Image
               </label>
-              {/* {errors.image && <span className="addProducterror-text">{errors.image}</span>} */}
             </div>
           </section>
 
           {/* Pricing */}
           <section className="addProductcard">
             <h3 className="addProductcard-title">Pricing</h3>
-            
+
             <div className="addProductform-row">
               <label className="addProductlabel">
                 Base Price <span className="addProductrequired">*</span>
@@ -315,9 +303,10 @@ if (image) {
                 type="number"
                 value={formData.basicPricing}
                 onChange={handleChange}
-                placeholder="$ Type base price here…"
+                placeholder="₹ Type base price here…"
+                step="0.01"
+                min="0"
               />
-              {/* {errors.basicPricing && <span className="addProducterror-text">{errors.basicPricing}</span>} */}
             </div>
 
             <div className="addProductform-row two">
@@ -330,24 +319,24 @@ if (image) {
                   onChange={handleChange}
                 >
                   <option value="">No Discount</option>
-                  <option value="5%">5%</option>
-                  <option value="10%">10%</option>
-                  <option value="15%">15%</option>
-                  <option value="20%">20%</option>
-                  <option value="25%">25%</option>
-                  <option value="30%">30%</option>
-                  <option value="35%">35%</option>
-                  <option value="40%">40%</option>
-                  <option value="45%">45%</option>
-                  <option value="50%">50%</option>
+                  <option value="5">5%</option>
+                  <option value="10">10%</option>
+                  <option value="15">15%</option>
+                  <option value="20">20%</option>
+                  <option value="25">25%</option>
+                  <option value="30">30%</option>
+                  <option value="35">35%</option>
+                  <option value="40">40%</option>
+                  <option value="45">45%</option>
+                  <option value="50">50%</option>
                 </select>
               </div>
-              
-              {formData.basicPricing && formData.discountType && (
+
+              {formData.basicPricing && (
                 <div className="addProductinput-wrapper">
                   <label className="addProductlabel">Final Price</label>
                   <div className="addProductfinal-price">
-                    ${(parseFloat(formData.basicPricing) * (1 - parseFloat(formData.discountType) / 100)).toFixed(2)}
+                    {finalPriceDisplay()}
                   </div>
                 </div>
               )}
@@ -366,11 +355,9 @@ if (image) {
                   className={`addProductinput ${errors.productSKU ? 'error' : ''}`}
                   name="productSKU"
                   value={formData.productSKU || ""}
-                  // onChange={handleChange}
-                  placeholder="SKU While Auto Generate"
+                  placeholder="SKU will auto-generate"
                   readOnly
                 />
-                {/* {errors.sku && <span className="addProducterror-text">{errors.sku}</span>} */}
               </div>
 
               <div className="addProductinput-wrapper">
@@ -395,8 +382,8 @@ if (image) {
                   value={formData.productQuantity}
                   onChange={handleChange}
                   placeholder="Quantity"
+                  min="0"
                 />
-                {/* {errors.quantity && <span className="addProducterror-text">{errors.quantity}</span>} */}
               </div>
             </div>
           </section>
@@ -472,7 +459,7 @@ if (image) {
         <div className="addProductadd-right">
           <section className="addProductcard sidebar-card">
             <h3 className="addProductcard-title">Category</h3>
-            
+
             <label className="addProductlabel">
               Product Category <span className="addProductrequired">*</span>
             </label>
@@ -489,7 +476,6 @@ if (image) {
               <option value="scrunchies">Scrunchies</option>
               <option value="Earrings">Earrings</option>
             </select>
-            {/* {errors.category && <span className="addProducterror-text">{errors.category}</span>} */}
 
             <label className="addProductlabel" style={{ marginTop: 16 }}>Product Tags</label>
             <input 
@@ -501,7 +487,6 @@ if (image) {
             />
             <div className="addProducthelper-text">Separate tags with commas</div>
 
-            {/* UPDATED: Status field is now mandatory */}
             <label className="addProductlabel" style={{ marginTop: 16 }}>
               Product Status <span className="addProductrequired">*</span>
             </label>
@@ -518,7 +503,6 @@ if (image) {
               <option value="discontinued">Discontinued</option>
               <option value="draft">Draft</option>
             </select>
-            {/* {errors.status && <span className="addProducterror-text">{errors.status}</span>} */}
           </section>
         </div>
       </div>
