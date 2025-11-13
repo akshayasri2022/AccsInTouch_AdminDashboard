@@ -542,7 +542,45 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
           {!editMode ? (
             <>
               <h3 className="cm-name">{customer.name}</h3>
-              <div className={`cm-status ${customer.status?.toLowerCase() || "active"}`}>{customer.status || "Active"}</div>
+              <button
+  className={`cm-status-toggle ${customer.status === "Active" ? "active" : "blocked"}`}
+  onClick={(e) => {
+    e.stopPropagation();
+
+    const newStatus = customer.status === "Active" ? "Blocked" : "Active";
+
+    // optimistic UI update
+    const updated = { ...customer, status: newStatus };
+    setCustomer(updated);
+    onUpdated(updated);
+
+    try {
+      // save locally to unsynced
+      upsertUnsyncedToStorage(updated);
+    } catch (e) {
+      console.warn("Failed to persist local status toggle");
+    }
+
+    // send update to server
+    axiosAPI.put(`/customer/${customer.id}`, updated)
+      .then((res) => {
+        const server = unwrap(res);
+        if (server) {
+          const norm = normalizeCustomer(server);
+          onUpdated(norm);
+          removeUnsyncedFromStorage(updated.id);
+          toast.success(`Status changed to ${newStatus}`);
+        }
+      })
+      .catch((err) => {
+        console.warn("Status update failed, keeping local", err);
+        toast.info("Saved locally — will sync later.");
+      });
+  }}
+>
+  {customer.status}
+</button>
+
 
               <hr className="cm-sep" />
 
@@ -1255,7 +1293,9 @@ export default function CustomerManagement() {
                         </div>
                         <div>
                           <div className="stat-label">Balance</div>
-                          <div className="stat-value">{c.balance}</div>
+                         <div className="stat-value">
+                                    ₹{(Number(c.balance?.toString().replace(/[^0-9.-]/g, "")) || 0).toLocaleString("en-IN")}
+                         </div>
                         </div>
                       </div>
 

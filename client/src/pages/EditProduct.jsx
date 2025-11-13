@@ -1,3 +1,4 @@
+// src/pages/EditProduct.jsx
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
@@ -7,6 +8,9 @@ import "../styles/AddProductForm.css";
 import "../styles/EditProduct.css";
 
 const LS_PROD_KEY = "pm_cached_products_v1";
+const CLIENT_PUT_TIMEOUT = 120000; // 120s
+const UPLOAD_TIMEOUT = 120000; // 120s
+const MAX_PAYLOAD_BYTES = 1024 * 500; // 500 KB - avoid sending JSON bigger than this
 
 function loadCachedProducts() {
   try {
@@ -45,14 +49,65 @@ function removeCachedProduct(id) {
   }
 }
 function sanitizeImageUrls(urls = []) {
-  return (urls || []).filter(u => typeof u === "string" && (/^https?:\/\//i).test(u));
+  return (urls || []).filter(u => typeof u === "string" && (/^(https?:\/\/|data:)/i).test(u));
+}
+
+// convert File -> dataURL (fallback only)
+function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => {
+      reader.abort();
+      reject(new Error("Failed to read file"));
+    };
+    reader.onload = () => {
+      resolve(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Compress image using canvas -> returns File (jpeg)
+function compressImageFile(file, maxWidth = 1200, quality = 0.75) {
+  return new Promise((resolve, reject) => {
+    if (!(file instanceof File)) return reject(new Error("Not a File"));
+    const img = new Image();
+    img.onerror = () => reject(new Error("Failed to load image for compression"));
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return reject(new Error("Canvas toBlob returned null"));
+          const compressedFile = new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", {
+            type: "image/jpeg",
+            lastModified: Date.now(),
+          });
+          resolve(compressedFile);
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read file for compression"));
+    reader.onload = () => {
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 export default function EditProduct() {
   const { id } = useParams();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
-  const objectUrlsRef = useRef([]); // track object URLs to revoke on unmount
+  const objectUrlsRef = useRef([]);
 
   const [form, setForm] = useState({
     productName: "",
@@ -72,6 +127,7 @@ export default function EditProduct() {
     discountType: "0%",
   });
 
+  const [imageFiles, setImageFiles] = useState([]); // actual File objects (compressed)
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -87,8 +143,6 @@ export default function EditProduct() {
           { timeout: 12000, signal: controller.signal }
         );
         const data = resp.data || {};
-
-        // prefer locally cached pending update if present
         const cached = loadCachedProducts().find(p => String(p.id) === String(id));
         const final = cached && cached.__pendingUpdate ? { ...data, ...cached } : data;
 
@@ -137,7 +191,6 @@ export default function EditProduct() {
           console.log("Fetch canceled.");
         } else {
           console.error("Fetch product error:", err);
-          // fallback to cached version if network fetch fails
           const cached = loadCachedProducts().find(p => String(p.id) === String(id));
           if (cached) {
             setForm({
@@ -171,7 +224,6 @@ export default function EditProduct() {
     return () => {
       controller.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -205,11 +257,29 @@ export default function EditProduct() {
     fileInputRef.current?.click();
   }
 
-  function handleFilesSelected(e) {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
+  // NEW: compress selected files then store compressed files & previews
+  async function handleFilesSelected(e) {
+    const rawFiles = Array.from(e.target.files || []);
+    if (!rawFiles.length) return;
 
-    const previews = files
+    // compress files in parallel; fallback to original if compression fails
+    const compressedResults = await Promise.all(
+      rawFiles.map(async (f) => {
+        try {
+          const c = await compressImageFile(f, 1200, 0.75);
+          return c;
+        } catch (err) {
+          console.warn("Compression failed for", f.name, "— using original", err);
+          return f;
+        }
+      })
+    );
+
+    // Save compressed File objects
+    setImageFiles(prev => [...prev, ...compressedResults]);
+
+    // Create preview object URLs for UI
+    const previews = compressedResults
       .map((f) => {
         try {
           const url = URL.createObjectURL(f);
@@ -226,9 +296,19 @@ export default function EditProduct() {
   }
 
   function handleRemoveImage(index) {
+    // remove preview URL from image_url and remove corresponding File if present
     setForm((p) => {
       const newUrls = (p.image_url || []).filter((_, i) => i !== index);
       return { ...p, image_url: newUrls };
+    });
+
+    setImageFiles(prev => {
+      if (!prev || prev.length === 0) return prev;
+      if (index < prev.length) {
+        const newFiles = prev.filter((_, i) => i !== index);
+        return newFiles;
+      }
+      return prev;
     });
   }
 
@@ -246,7 +326,49 @@ export default function EditProduct() {
     return true;
   };
 
- // ...existing code...
+  // Upload files to server; fallback to data URIs only if total size small
+  async function uploadFilesOrFallback(files) {
+    if (!files || files.length === 0) return [];
+
+    // Try server upload
+    try {
+      const fd = new FormData();
+      files.forEach((f) => fd.append("files", f));
+      const resp = await axios.post(
+        "https://acc-in-touch-1.onrender.com/api/upload",
+        fd,
+        { headers: { "Content-Type": "multipart/form-data" }, timeout: UPLOAD_TIMEOUT }
+      );
+      if (resp && resp.data) {
+        if (Array.isArray(resp.data)) return resp.data;
+        if (Array.isArray(resp.data.urls)) return resp.data.urls;
+        if (Array.isArray(resp.data.uploaded)) return resp.data.uploaded;
+      }
+      throw new Error("Unexpected upload response format");
+    } catch (err) {
+      console.warn("Upload endpoint failed or unavailable, falling back to data URIs:", err);
+
+      // Fallback: convert to data URLs but ensure total size is acceptable
+      const converted = await Promise.all(files.map(f => fileToDataURL(f).catch(e => {
+        console.warn("fileToDataURL failed for file:", f, e);
+        return null;
+      })));
+      const safeConverted = converted.filter(Boolean);
+
+      try {
+        const asJson = JSON.stringify({ image_url: safeConverted });
+        const size = new Blob([asJson]).size;
+        if (size > MAX_PAYLOAD_BYTES) {
+          throw new Error(`Images too large (${Math.round(size/1024)} KB) to include as data URIs. Please upload images first.`);
+        }
+      } catch (e) {
+        throw new Error(e.message || "Cannot safely attach images. Please upload images to the server and try again.");
+      }
+
+      return safeConverted;
+    }
+  }
+
   async function handleSave(e) {
     e?.preventDefault?.();
     if (saving) return;
@@ -254,45 +376,62 @@ export default function EditProduct() {
 
     setSaving(true);
 
-    // If user added local blob previews, warn and stop — blob:// URLs cannot be POSTed as-is
-    const hasLocalBlobs = (form.image_url || []).some(u => typeof u === "string" && u.startsWith("blob:"));
-    if (hasLocalBlobs) {
-      alert(
-        "You have local image previews selected. These are not uploaded automatically. " +
-        "Remove them or upload real image URLs before saving."
-      );
-      setSaving(false);
-      return;
-    }
-
-    const payload = {
-      productName: form.productName,
-      productDescription: form.productDescription,
-      basicPricing: Number(form.basicPricing) || 0,
-      productSKU: form.productSKU,
-      productBarcode: form.productBarcode,
-      productQuantity: Number(form.productQuantity) || 0,
-      productCategory: form.productCategory,
-      productStatus: form.productStatus,
-      productWeight: Number(form.productWeight) || 0,
-      productHeight: Number(form.productHeight) || 0,
-      productLength: Number(form.productLength) || 0,
-      productWidth: Number(form.productWidth) || 0,
-      productTags: form.productTags,
-      // only send remote URLs
-      image_url: sanitizeImageUrls(form.image_url),
-    };
-
-    // optimistic local cache so refresh shows edits
-    upsertCachedProduct({ id, ...payload, __pendingUpdate: true, __updatedAt: Date.now() });
-
-    console.log("Sending payload:", payload);
-
     try {
+      // 1) Upload selected files first (attempt) or fallback to data URIs
+      let uploadedUrls = [];
+      if (imageFiles && imageFiles.length > 0) {
+        try {
+          uploadedUrls = await uploadFilesOrFallback(imageFiles);
+        } catch (uploadErr) {
+          console.error("File upload/fallback failed:", uploadErr);
+          upsertCachedProduct({ id, ...form, __pendingUpdate: true, __updatedAt: Date.now() });
+          alert(uploadErr.message || "Image upload failed and images are too large — changes saved locally.");
+          return;
+        }
+      }
+
+      // 2) Combine previously-remote urls + newly uploaded urls (skip blob:)
+      const existingUrls = (form.image_url || []).filter(u => typeof u === "string" && !u.startsWith("blob:"));
+      const imagesToSend = [...existingUrls, ...uploadedUrls];
+
+      const payload = {
+        productName: form.productName,
+        productDescription: form.productDescription,
+        basicPricing: Number(form.basicPricing) || 0,
+        productSKU: form.productSKU,
+        productBarcode: form.productBarcode,
+        productQuantity: Number(form.productQuantity) || 0,
+        productCategory: form.productCategory,
+        productStatus: form.productStatus,
+        productWeight: Number(form.productWeight) || 0,
+        productHeight: Number(form.productHeight) || 0,
+        productLength: Number(form.productLength) || 0,
+        productWidth: Number(form.productWidth) || 0,
+        productTags: form.productTags,
+        image_url: sanitizeImageUrls(imagesToSend),
+      };
+
+      // optimistic local cache
+      upsertCachedProduct({ id, ...payload, __pendingUpdate: true, __updatedAt: Date.now() });
+
+      // debug size and abort early if too big
+      try {
+        const asJson = JSON.stringify(payload);
+        const bytes = new Blob([asJson]).size;
+        console.log("Prepared payload size (bytes):", bytes, "chars:", asJson.length);
+        if (bytes > MAX_PAYLOAD_BYTES) {
+          alert(`Prepared payload is large (${Math.round(bytes/1024)} KB). Images may be too big. Changes saved locally.`);
+          return;
+        }
+      } catch (err) {
+        console.warn("Failed to compute payload size:", err);
+      }
+
+      // 3) PUT to update product (longer timeout)
       const resp = await axios.put(
         `https://acc-in-touch-1.onrender.com/api/Product/${id}`,
         payload,
-        { headers: { "Content-Type": "application/json" }, timeout: 20000 }
+        { headers: { "Content-Type": "application/json" }, timeout: CLIENT_PUT_TIMEOUT }
       );
 
       console.log("Update response:", resp?.status, resp?.data);
@@ -342,7 +481,6 @@ export default function EditProduct() {
           }));
         }
 
-        // success — remove pending local cache and navigate
         removeCachedProduct(id);
         alert("Product updated successfully!");
         navigate("/ProductManagement");
@@ -352,6 +490,12 @@ export default function EditProduct() {
       }
     } catch (err) {
       console.error("Update error (full):", err);
+
+      if (err.code === "ECONNABORTED" || (err.message && err.message.includes("timeout"))) {
+        console.error("Request timed out:", err);
+        alert("Request timeout — the server took too long to respond. Changes are saved locally.");
+        return;
+      }
 
       if (err.response) {
         console.error("Server response data:", err.response.data);
@@ -365,11 +509,9 @@ export default function EditProduct() {
         alert(`Error: ${err.message}`);
       }
     } finally {
-      // ensure UI state is always reset
       setSaving(false);
     }
   }
-// ...existing code...
 
   function handleCancel() {
     if (saving) return;
