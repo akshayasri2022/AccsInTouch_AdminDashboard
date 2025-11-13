@@ -1,7 +1,10 @@
 /* src/styles/EditProduct.css
-   Full stylesheet with updated button styles to match the provided reference.
-   Buttons are equal width and height and responsive.
+   Original content (kept intact) + override section at the bottom.
 */
+
+/* =========================
+   ORIGINAL STYLES (unchanged)
+   ========================= */
 
 :root {
   /* change this width to make the action buttons wider/narrower */
@@ -454,3 +457,168 @@
     width: 100%;
   }
 }
+
+/* =========================
+   OVERRIDES (do not change originals above)
+   These rules override only the layout/width issues (wrapping/overlap)
+   without modifying your original design choices.
+   Added by assistant — place last so these take precedence.
+   ========================= */
+
+/* Ensure border-box everywhere to avoid width surprises */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Make the main layout more flexible when needed */
+.editproductadd-product-layout {
+  /* preserve original flex behavior but allow wrapping to avoid overflow */
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  flex-wrap: wrap; /* allow right column to drop under left on narrow screens */
+}
+
+/* Make left column be flexible and not force min-width overflow */
+.editproductadd-left {
+  flex: 1 1 0;
+  min-width: 0 !important; /* important to avoid overflowing fixed children */
+}
+
+/* Sidebar stays fixed width but can shrink visually on small screens */
+.editproductadd-right {
+  flex: 0 0 280px;
+  width: 280px;
+  min-width: 0;
+}
+
+/* Fix the form-row widths which used vw and caused overlap.
+   Use full-width for rows and let internal children share space. */
+.editproductform-row {
+  width: 100% !important; /* take the available container width */
+  max-width: 100%;
+  margin-bottom: 12px;
+}
+
+/* For rows that were side-by-side (three), allow wrapping and flexible children */
+.editproductform-row.three {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 12px !important;
+  flex-wrap: wrap !important; /* allow items to move to next line instead of overlapping */
+  width: 100% !important;
+}
+
+/* Ensure each child inside .three can shrink but has a sane min width */
+.editproductform-row.three > * {
+  flex: 1 1 200px !important; /* grow and shrink, min sensible width */
+  min-width: 0 !important;
+}
+
+/* For four-column grid (shipping) use responsive minmax columns */
+.editproductform-row.four {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  width: 100% !important;
+}
+
+/* Ensure inputs / textarea never exceed their container */
+.editproductinput,
+.editproductselect,
+.editproducttextarea {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* The textarea previously used 55vw which caused overflow — make it responsive */
+.editproducttextarea {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 100px;
+  resize: vertical;
+}
+
+/* fix explicit widths in .three/other rules that used vw */
+.editproductform-row.three[style],
+.editproductform-row[style] {
+  /* remove inline width side-effects by forcing width:100% */
+  width: 100% !important;
+}
+
+/* make sure cards don't introduce overflow from padding/margins */
+.editproductcard {
+  overflow: visible; /* allow children to be visible without overflow clipping */
+}
+
+/* If you have inline-style width on specific child divs (from JSX) force them to be fluid */
+.editproductform-row.three > div,
+.editproductform-row.two > div,
+.editproductform-row.four > div {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+}
+
+/* Prevent the left column giant width on small screens */
+@media (max-width: 1024px) {
+  .editproductadd-product-layout {
+    flex-direction: column;
+  }
+  .editproductadd-right {
+    width: 100% !important;
+    flex: 1 1 0 !important;
+  }
+  .editproductform-row.three > * {
+    flex: 1 1 100% !important;
+  }
+  .editproductform-row.four {
+    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+  }
+  .editproducttextarea { min-height: 120px; }
+}
+
+/* Further reduce to single-column fields on very small screens */
+@media (max-width: 520px) {
+  .editproductform-row.four {
+    grid-template-columns: 1fr !important;
+  }
+  .editproductform-row.three > * {
+    flex: 1 1 100% !important;
+  }
+  .editproductbtn {
+    width: calc(var(--action-btn-width) - 30px) !important; /* slightly smaller on tiny screens */
+  }
+}
+
+/* Ensure thumbnail images don't force overflow */
+.editproductmedia-dropzone .editproductthumbnails,
+.editproductmedia-dropzone .editproductthumb {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* If any inline style sets widths with vw, these selectors override them */
+.editproductform-row > div[style*="width"],
+.editproductform-row.three > div[style*="width"],
+.editproductform-row.four > div[style*="width"] {
+  width: auto !important;
+  min-width: 0 !important;
+}
+
+/* Keep buttons visible and avoid shifting layout */
+.editproducttop-buttons {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* final safety: make sure everything respects the parent's width */
+.editproductadd-product-container,
+.editproductcard,
+.editproductadd-left,
+.editproductadd-right {
+  max-width: 100%;
+}
+
+/* end overrides */

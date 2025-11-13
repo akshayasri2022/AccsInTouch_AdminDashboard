@@ -1,5 +1,5 @@
 // src/pages/ProductManagement.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { FaSearch, FaDownload, FaFilter, FaCalendarAlt } from "react-icons/fa";
 import axios from "axios";
@@ -18,30 +18,33 @@ export default function ProductManagement() {
   const [rightSearch, setRightSearch] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Show add form when URL is /ProductManagement/add
   const [showAddForm, setShowAddForm] = useState(false);
   const [products, setProducts] = useState([]); // <-- Store fetched products
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-    const [filterStartDate, setFilterStartDate] = useState("");
+  // Filter popup states
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filterStartDate, setFilterStartDate] = useState("");
   const [filterEndDate, setFilterEndDate] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
+  const [filterStatus, setFilterStatus] = useState(""); // also used for 7days/30days and status name
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [stockFilter, setStockFilter] = useState("all"); // 'all' | 'low' | 'instock'
 
   useEffect(() => {
     setShowAddForm(location.pathname === "/ProductManagement/add");
   }, [location.pathname]);
 
-   // Fetch products from backend
+  // Fetch products from backend
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         setLoading(true);
         setError("");
         const res = await axios.get("https://acc-in-touch-1.onrender.com/api/Product");
-        console.log(res,"responseProducts")
+        console.log(res, "responseProducts");
         setProducts(res.data || []);
       } catch (err) {
         console.error("Error fetching products:", err);
@@ -51,16 +54,23 @@ export default function ProductManagement() {
       }
     };
     fetchProducts();
-  }, [refreshKey]); // refetch when a product is added or updated
+  }, [refreshKey]);
 
-    const handleExport = () => {
+  // derive categories from products for filter dropdown
+  const categoryOptions = useMemo(() => {
+    const setCat = new Set();
+    products.forEach((p) => {
+      if (p.category) setCat.add(p.category);
+    });
+    return Array.from(setCat);
+  }, [products]);
+
+  const handleExport = () => {
     const headers = ['productSKU', 'productName', 'productQuantity', 'productStatus', 'basicPricing'];
     
     const csvData = filteredProducts.map(order => [
       order.productSKU || '',
       order.productName || '',
-      // order.orderDate || '',
-      // order.orderTime || '',
       order.productQuantity || '',
       order.productStatus || '',
       order.basicPricing || '',
@@ -75,7 +85,7 @@ export default function ProductManagement() {
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `orders_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `products_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -88,6 +98,7 @@ export default function ProductManagement() {
 
   function handleProductAdded(newProduct) {
     setRefreshKey((prev) => prev + 1);
+    // keep navigation, but no background-only assumptions
     setTimeout(() => {
       navigate("/ProductManagement");
     }, 1500);
@@ -97,51 +108,120 @@ export default function ProductManagement() {
     navigate("/ProductManagement");
   }
 
-    // Filter products based on search + tab selection
+  // Apply filter button opens modal
+  function handleOpenFilters() {
+    setShowFilterModal(true);
+  }
+
+  function handleClearFilters() {
+    setFilterStartDate("");
+    setFilterEndDate("");
+    setFilterStatus("");
+    setMinPrice("");
+    setMaxPrice("");
+    setSelectedCategory("");
+    setStockFilter("all");
+    setShowFilterModal(false);
+  }
+
+  function handleApplyFilters() {
+    // Modal just closes — filters are read from state in filteredProducts
+    setShowFilterModal(false);
+  }
+
+  // date select on right side (dropdown)
+  function handleDateSelectChange(e) {
+    const val = e.target.value;
+    if (val === "7") setFilterStatus("7days");
+    else if (val === "30") setFilterStatus("30days");
+    else setFilterStatus("");
+  }
+
+  // Filtered products computed from products + UI filter states
   const filteredProducts = products.filter((product) => {
     const now = new Date();
-    const createdDate = new Date(product.createdAt);
+    const createdDate = product.createdAt ? new Date(product.createdAt) : null;
 
-    // Search filters
+    // Defensive normalization (ensure strings)
+    const prodName = (product.productName || "").toString();
+    const prodSKU = (product.productSKU || "").toString();
+    const prodStatusRaw = (product.productStatus || "").toString();
+    const prodCategoryRaw = (product.category || "").toString();
+
+    const prodStatus = prodStatusRaw.trim().toLowerCase();
+    const prodCategory = prodCategoryRaw.trim().toLowerCase();
+
+    // Search filters (case-insensitive)
     const searchTerm = (globalSearch || rightSearch).toLowerCase();
     const matchesSearch =
       !searchTerm ||
-      product.productName?.toLowerCase().includes(searchTerm) ||
-      product.productSKU?.toLowerCase().includes(searchTerm);
+      (prodName && prodName.toLowerCase().includes(searchTerm)) ||
+      (prodSKU && prodSKU.toLowerCase().includes(searchTerm));
 
-    // Tab-based filters
-    if (tab === "published" && product.productStatus !== "Published")
-      return false;
-    if (tab === "lowstock" && product.productQuantity >= 10) return false;
-    if (tab === "draft" && product.productStatus !== "Draft") return false;
+    if (!matchesSearch) return false;
 
-    // Date filters
-    const isWithin7Days =
-      (now - createdDate) / (1000 * 60 * 60 * 24) <= 7 && filterStatus === "";
-    const isWithin30Days =
-      (now - createdDate) / (1000 * 60 * 60 * 24) <= 30 && filterStatus === "";
+    // Tab-based filters (case-insensitive comparison)
+    const tabKey = (tab || "").toString().trim().toLowerCase();
+    if (tabKey === "outofstock" && prodStatus !== "outofstock") return false;
+    if (tabKey === "lowstock" && Number(product.productQuantity) >= 10) return false;
+    if (tabKey === "draft" && prodStatus !== "draft") return false;
 
     // Dropdown date filter (Last 7 or 30 days)
-    if (filterStatus === "7days" && !isWithin7Days) return false;
-    if (filterStatus === "30days" && !isWithin30Days) return false;
-
-    // Custom date range (popup)
-    if (filterStartDate && new Date(product.createdAt) < new Date(filterStartDate))
-      return false;
-    if (filterEndDate && new Date(product.createdAt) > new Date(filterEndDate))
-      return false;
-
-    // Status filter from popup
-    if (filterStatus && !["7days", "30days"].includes(filterStatus)) {
-      if (product.productStatus !== filterStatus) return false;
+    if (filterStatus === "7days") {
+      if (!createdDate) return false;
+      const days = (now - createdDate) / (1000 * 60 * 60 * 24);
+      if (days > 7) return false;
+    }
+    if (filterStatus === "30days") {
+      if (!createdDate) return false;
+      const days = (now - createdDate) / (1000 * 60 * 60 * 24);
+      if (days > 30) return false;
     }
 
-    // Price filter from popup
-    if (minPrice && product.basicPricing < parseFloat(minPrice)) return false;
-    if (maxPrice && product.basicPricing > parseFloat(maxPrice)) return false;
+    // Custom date range
+    if (filterStartDate) {
+      const s = new Date(filterStartDate);
+      if (!createdDate || createdDate < s) return false;
+    }
+    if (filterEndDate) {
+      const e = new Date(filterEndDate);
+      if (!createdDate || createdDate > e) return false;
+    }
 
-    return matchesSearch;
+    // Status filter (if user selected an explicit status string other than 7days/30days)
+    if (filterStatus && !["7days", "30days"].includes(filterStatus)) {
+      const fs = filterStatus.toString().trim().toLowerCase();
+      if (prodStatus !== fs) return false;
+    }
+
+    // Category filter (case-insensitive)
+    if (selectedCategory) {
+      const selCat = selectedCategory.toString().trim().toLowerCase();
+      if (prodCategory !== selCat) return false;
+    }
+
+    // Stock filter
+    const qty = Number(product.productQuantity ?? 0);
+    if (stockFilter === "low" && qty >= 10) return false;
+    if (stockFilter === "instock" && qty < 10) return false;
+
+    // Price filter
+    if (minPrice !== "" && Number(product.basicPricing) < parseFloat(minPrice)) return false;
+    if (maxPrice !== "" && Number(product.basicPricing) > parseFloat(maxPrice)) return false;
+
+    return true;
   });
+
+  // compute active filter count for badge
+  const activeFilterCount = [
+    selectedCategory ? 1 : 0,
+    stockFilter !== "all" ? 1 : 0,
+    minPrice ? 1 : 0,
+    maxPrice ? 1 : 0,
+    filterStartDate ? 1 : 0,
+    filterEndDate ? 1 : 0,
+    (filterStatus && !["7days","30days"].includes(filterStatus)) ? 1 : 0,
+  ].reduce((a,b) => a + b, 0);
 
   return (
     <div className="dashboard-root">
@@ -196,10 +276,10 @@ export default function ProductManagement() {
                     All Product
                   </button>
                   <button
-                    className={`tab ${tab === "published" ? "active" : ""}`}
-                    onClick={() => setTab("published")}
+                    className={`tab ${tab === "Outofstock" ? "active" : ""}`}
+                    onClick={() => setTab("Outofstock")}
                   >
-                    Published
+                    Outofstock
                   </button>
                   <button
                     className={`tab ${tab === "lowstock" ? "active" : ""}`}
@@ -231,19 +311,22 @@ export default function ProductManagement() {
                   {/* Select date with icon */}
                   <div className="select-wrapper">
                     <FaCalendarAlt className="select-icon" />
-                    <select className="filter-select">
-                      <option>Select Date</option>
+                    <select className="filter-select" onChange={handleDateSelectChange} value={filterStatus === "7days" ? "7" : filterStatus === "30days" ? "30" : ""}>
+                      <option value="">Select Date</option>
                       <option value="7">Last 7 days</option>
                       <option value="30">Last 30 days</option>
                     </select>
                   </div>
 
-                  {/* Filters button with icon */}
+                  {/* Filters button with icon + active-count badge */}
                   <button
-                    className="btn-outline"
-                    onClick={() => alert("Open filters")}
+                    className="btn-outline filter-btn"
+                    onClick={handleOpenFilters}
                   >
                     <FaFilter style={{ marginRight: "6px" }} /> Filters
+                    <span className={`filter-badge ${activeFilterCount === 0 ? "zero" : ""}`}>
+                      {activeFilterCount}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -278,6 +361,101 @@ export default function ProductManagement() {
           </div>
         </div>
       </div>
+
+      {/* Filter Modal (uses CSS classes from Product.css) */}
+      {showFilterModal && (
+        <div className="filter-modal-overlay">
+          <div className="filter-modal">
+            <h3>Filters</h3>
+
+            <div style={{ marginBottom: 12 }}>
+              <label>Category</label>
+              <select
+  value={selectedCategory}
+  onChange={(e) => setSelectedCategory(e.target.value)}
+  style={{ width: "100%", padding: "8px", marginTop: 6 }}
+>
+  <option value="">All categories</option>
+  <option value="Hair Bows">Hair Bows</option>
+  <option value="Claws">Claws</option>
+  <option value="Earrings">Earrings</option>
+  <option value="Scrunchies">Scrunchies</option>
+</select>
+
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <label>Stock</label>
+              <select
+                value={stockFilter}
+                onChange={(e) => setStockFilter(e.target.value)}
+                style={{ width: "100%", padding: "8px", marginTop: 6 }}
+              >
+                <option value="all">All</option>
+                <option value="low">Low stock (&lt; 10)</option>
+                <option value="instock">In stock (≥ 10)</option>
+              </select>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label>Min Price</label>
+                <input
+                  type="number"
+                  value={minPrice}
+                  onChange={(e) => setMinPrice(e.target.value)}
+                  placeholder="0.00"
+                  style={{ width: "100%", padding: "8px", marginTop: 6 }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label>Max Price</label>
+                <input
+                  type="number"
+                  value={maxPrice}
+                  onChange={(e) => setMaxPrice(e.target.value)}
+                  placeholder="9999.99"
+                  style={{ width: "100%", padding: "8px", marginTop: 6 }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label>Start Date</label>
+                <input
+                  type="date"
+                  value={filterStartDate}
+                  onChange={(e) => setFilterStartDate(e.target.value)}
+                  style={{ width: "100%", padding: "8px", marginTop: 6 }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label>End Date</label>
+                <input
+                  type="date"
+                  value={filterEndDate}
+                  onChange={(e) => setFilterEndDate(e.target.value)}
+                  style={{ width: "100%", padding: "8px", marginTop: 6 }}
+                />
+              </div>
+            </div>
+
+            <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
+              <button className="btn-outline" onClick={handleClearFilters}>Clear</button>
+              <button className="btn-primary" onClick={handleApplyFilters}>Apply</button>
+            </div>
+
+            <button
+              onClick={() => setShowFilterModal(false)}
+              className="close-x"
+              aria-label="Close filters"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

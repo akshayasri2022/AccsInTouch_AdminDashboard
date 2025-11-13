@@ -1,19 +1,19 @@
-/* Dashboard Layout */
+
 .dashboard-layout {
   display: flex;
   min-height: 100vh;
   background-color: #f8f9fa;
+  align-items: flex-start; 
+  gap: 0;
 }
 
 .order-management {
   flex: 1;
   padding: 32px 40px;
-  max-width: 77vw;
+  max-width: 100vw;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 }
-/* Add this to your OrderManagement.css file */
 
-/* Add Customer Button in Modal */
 .form-group .btn-primary {
   width: 100%;
   padding: 12px 24px;
@@ -47,77 +47,6 @@
   border-left: 3px solid #27ae60;
 }
 /* Header */
-.order-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 32px;
-}
-
-.order-title {
-  font-size: 28px;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin: 0;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.shop-select {
-  padding: 10px 16px;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  background: white;
-  font-size: 14px;
-  cursor: pointer;
-  outline: none;
-  min-width: 130px;
-}
-
-.notification-badge {
-  position: relative;
-  width: 44px;
-  height: 44px;
-  background: white;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.bell-icon {
-  font-size: 18px;
-}
-
-.badge {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  background: #ff4444;
-  color: white;
-  font-size: 10px;
-  padding: 3px 7px;
-  border-radius: 12px;
-  font-weight: 700;
-  min-width: 18px;
-  text-align: center;
-}
-
-.user-avatar {
-  width: 44px;
-  height: 44px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
 /* Search and Actions Bar */
 .order-actions-bar {
   display: flex;
@@ -274,6 +203,7 @@
 
 .orders-table {
   width: 100%;
+  min-width: 720px; 
   border-collapse: collapse;
 }
 
@@ -609,7 +539,6 @@ input[type="checkbox"] {
   font-weight: 500;
 }
 
-/* Large Modals Scroll */
 .modal-large .modal-body,
 .modal-add-order .modal-body {
   max-height: calc(90vh - 180px);
@@ -702,7 +631,6 @@ input[type="checkbox"] {
   box-shadow: 0 0 0 3px rgba(88, 86, 214, 0.1);
 }
 
-/* Remove arrows from number inputs */
 .form-group input[type="number"] {
   -moz-appearance: textfield;
 }
@@ -713,7 +641,6 @@ input[type="checkbox"] {
   margin: 0;
 }
 
-/* ADVANCED FILTERS MODAL – ENHANCED */
 .filter-section {
   margin-bottom: 28px;
   padding-bottom: 20px;
@@ -786,7 +713,6 @@ input[type="checkbox"] {
   margin: 0;
 }
 
-/* Button Styles */
 .btn-primary {
   padding: 10px 24px;
   background: #5856D6;
@@ -842,7 +768,6 @@ input[type="checkbox"] {
   background: #c0392b;
 }
 
-/* Add Order Modal Styles */
 .order-details-form {
   display: flex;
   flex-direction: column;
@@ -891,7 +816,6 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(88, 86, 214, 0.1);
 }
 
-/* Search Product */
 .search-product-container {
   position: relative;
   width: 100%;
@@ -980,8 +904,6 @@ textarea:focus {
   color: #333;
   margin: 0 0 16px 0;
 }
-
-/* Modal Footer for Add Order */
 .modal-footer-add {
   gap: 12px;
   justify-content: space-between;
@@ -1033,7 +955,6 @@ textarea:focus {
   cursor: not-allowed;
 }
 
-/* Toggle Switch */
 .switch {
   position: relative;
   display: inline-block;
@@ -1078,8 +999,6 @@ input:checked + .slider {
 input:checked + .slider:before {
   transform: translateX(26px);
 }
-
-/* Responsive */
 @media (max-width: 1400px) {
   .order-management {
     padding: 24px 32px;
@@ -1105,12 +1024,6 @@ input:checked + .slider:before {
   .order-management {
     margin-left: 0;
     padding: 16px;
-  }
-  
-  .order-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
   }
   
   .order-tabs {

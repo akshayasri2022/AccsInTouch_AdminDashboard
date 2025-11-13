@@ -1,31 +1,26 @@
 import React from "react";
-import "../styles/ProductTopbar.css";
 import { FiBell } from "react-icons/fi";
+import "../styles/TopbarShared.css";
 
 export default function ProductTopbar() {
   return (
-    <header className="product-topbar">
+    <header className="shared-topbar">
       <div className="topbar-left">
-        <h1 className="topbar-title">Product</h1>
+        <h2>ProductManagement</h2>
       </div>
 
       <div className="topbar-right">
-        {/* Replaced dropdown with plain text */}
         <span className="acc-text">Acc-in-touch</span>
 
-        {/* Notification icon */}
-        <button className="icon-btn notification-btn">
-          <FiBell size={18} />
+        <button className="icon-btn" title="Notifications">
+          <FiBell />
         </button>
 
-        {/* Profile avatar */}
-        <div className="profile-avatar">
-          <img
-            src="https://i.pravatar.cc/32?img=3"
-            alt="User"
-            className="avatar-img"
-          />
-        </div>
+        <img
+          src="https://i.pravatar.cc/40?img=3"
+          className="avatar-img"
+          alt="User"
+        />
       </div>
     </header>
   );

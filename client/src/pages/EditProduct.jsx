@@ -1,5 +1,4 @@
-// src/pages/EditProduct.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import ProductTopbar from "../components/ProductTopbar";
@@ -7,11 +6,55 @@ import axios from "axios";
 import "../styles/AddProductForm.css";
 import "../styles/EditProduct.css";
 
+const LS_PROD_KEY = "pm_cached_products_v1";
+
+function loadCachedProducts() {
+  try {
+    const raw = localStorage.getItem(LS_PROD_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch (e) {
+    console.warn("Failed to load cached products", e);
+    return [];
+  }
+}
+function saveCachedProducts(arr) {
+  try {
+    localStorage.setItem(LS_PROD_KEY, JSON.stringify(arr || []));
+  } catch (e) {
+    console.warn("Failed to save cached products", e);
+  }
+}
+function upsertCachedProduct(item) {
+  try {
+    const arr = loadCachedProducts();
+    const idx = arr.findIndex(p => String(p.id) === String(item.id));
+    if (idx === -1) arr.unshift(item);
+    else arr[idx] = { ...arr[idx], ...item };
+    saveCachedProducts(arr);
+  } catch (e) {
+    console.warn("Failed to upsert cached product", e);
+  }
+}
+function removeCachedProduct(id) {
+  try {
+    const arr = loadCachedProducts().filter(p => String(p.id) !== String(id));
+    saveCachedProducts(arr);
+  } catch (e) {
+    console.warn("Failed to remove cached product", e);
+  }
+}
+function sanitizeImageUrls(urls = []) {
+  return (urls || []).filter(u => typeof u === "string" && (/^https?:\/\//i).test(u));
+}
+
 export default function EditProduct() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
+  const objectUrlsRef = useRef([]); // track object URLs to revoke on unmount
 
-const [form, setForm] = useState({
+  const [form, setForm] = useState({
     productName: "",
     productDescription: "",
     basicPricing: "",
@@ -25,61 +68,203 @@ const [form, setForm] = useState({
     productLength: "",
     productWidth: "",
     productTags: "",
-    image_url: [],               // <-- matches DB field
-    discountType: "0%",          // UI-only (not sent to server)
+    image_url: [],
+    discountType: "0%",
   });
 
+  const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Fetch product details by ID
-  // ✅ Fetch product details by ID
   useEffect(() => {
+    let controller = new AbortController();
+
+    async function fetchProduct() {
+      setLoading(true);
+      try {
+        const resp = await axios.get(
+          `https://acc-in-touch-1.onrender.com/api/Product/${id}`,
+          { timeout: 12000, signal: controller.signal }
+        );
+        const data = resp.data || {};
+
+        // prefer locally cached pending update if present
+        const cached = loadCachedProducts().find(p => String(p.id) === String(id));
+        const final = cached && cached.__pendingUpdate ? { ...data, ...cached } : data;
+
+        setForm({
+          productName: final.productName || "",
+          productDescription: final.productDescription || "",
+          basicPricing:
+            final.basicPricing !== undefined && final.basicPricing !== null
+              ? String(final.basicPricing)
+              : "",
+          productSKU: final.productSKU || "",
+          productBarcode: final.productBarcode || "",
+          productQuantity:
+            final.productQuantity !== undefined && final.productQuantity !== null
+              ? String(final.productQuantity)
+              : "",
+          productCategory: final.productCategory || "",
+          productStatus: final.productStatus || "draft",
+          productWeight:
+            final.productWeight !== undefined && final.productWeight !== null
+              ? String(final.productWeight)
+              : "",
+          productHeight:
+            final.productHeight !== undefined && final.productHeight !== null
+              ? String(final.productHeight)
+              : "",
+          productLength:
+            final.productLength !== undefined && final.productLength !== null
+              ? String(final.productLength)
+              : "",
+          productWidth:
+            final.productWidth !== undefined && final.productWidth !== null
+              ? String(final.productWidth)
+              : "",
+          productTags:
+            typeof final.productTags === "string"
+              ? final.productTags
+              : Array.isArray(final.productTags)
+              ? final.productTags.join(", ")
+              : "",
+          image_url: Array.isArray(final.image_url) ? final.image_url : [],
+          discountType: "0%",
+        });
+      } catch (err) {
+        if (axios.isCancel(err) || err.name === "CanceledError") {
+          console.log("Fetch canceled.");
+        } else {
+          console.error("Fetch product error:", err);
+          // fallback to cached version if network fetch fails
+          const cached = loadCachedProducts().find(p => String(p.id) === String(id));
+          if (cached) {
+            setForm({
+              productName: cached.productName || "",
+              productDescription: cached.productDescription || "",
+              basicPricing: cached.basicPricing ? String(cached.basicPricing) : "",
+              productSKU: cached.productSKU || "",
+              productBarcode: cached.productBarcode || "",
+              productQuantity: cached.productQuantity ? String(cached.productQuantity) : "",
+              productCategory: cached.productCategory || "",
+              productStatus: cached.productStatus || "draft",
+              productWeight: cached.productWeight ? String(cached.productWeight) : "",
+              productHeight: cached.productHeight ? String(cached.productHeight) : "",
+              productLength: cached.productLength ? String(cached.productLength) : "",
+              productWidth: cached.productWidth ? String(cached.productWidth) : "",
+              productTags: typeof cached.productTags === "string" ? cached.productTags : "",
+              image_url: Array.isArray(cached.image_url) ? cached.image_url : [],
+              discountType: "0%",
+            });
+          } else {
+            alert("Failed to load product. See console for details.");
+          }
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+
     fetchProduct();
+
+    return () => {
+      controller.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-const fetchProduct = async () => {
-    try {
-      const { data } = await axios.get(
-        `https://acc-in-touch-1.onrender.com/api/Product/${id}`   // <-- your local backend
-      );
+  useEffect(() => {
+    const list = (form.productTags || "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    setTags(list);
+  }, [form.productTags]);
 
-      setForm({
-        productName: data.productName || "",
-        productDescription: data.productDescription || "",
-        basicPricing: data.basicPricing || "",
-        productSKU: data.productSKU || "",
-        productBarcode: data.productBarcode || "",
-        productQuantity: data.productQuantity || "",
-        productCategory: data.productCategory || "",
-        productStatus: data.productStatus || "draft",
-        productWeight: data.productWeight || "",
-        productHeight: data.productHeight || "",
-        productLength: data.productLength || "",
-        productWidth: data.productWidth || "",
-        productTags: data.productTags || "",
-        image_url: Array.isArray(data.image_url) ? data.image_url : [],
-        discountType: "0%",               // default – will be overwritten if you store it
+  useEffect(() => {
+    return () => {
+      objectUrlsRef.current.forEach((url) => {
+        try { URL.revokeObjectURL(url); } catch {}
       });
-    } catch (err) {
-      console.error("Error fetching product:", err);
-      alert("Failed to load product. Check console.");
-    } finally {
-      setLoading(false);
-    }
-  };
+      objectUrlsRef.current = [];
+    };
+  }, []);
 
-  // handle field change
   function updateField(key, value) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((p) => ({ ...p, [key]: value }));
   }
 
-const handleSave = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    console.log("Save button clicked! ID:", id);
+  function handleImageError(e) {
+    if (!e?.target) return;
+    e.target.onerror = null;
+    e.target.src = "https://cdn-icons-png.flaticon.com/512/7486/7486744.png";
+  }
 
-    // Build payload **exactly** as the backend expects
+  function onAddImageClick() {
+    fileInputRef.current?.click();
+  }
+
+  function handleFilesSelected(e) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    const previews = files
+      .map((f) => {
+        try {
+          const url = URL.createObjectURL(f);
+          objectUrlsRef.current.push(url);
+          return url;
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    setForm((p) => ({ ...p, image_url: [...(p.image_url || []), ...previews] }));
+    e.target.value = ""; // allow re-selecting same file
+  }
+
+  function handleRemoveImage(index) {
+    setForm((p) => {
+      const newUrls = (p.image_url || []).filter((_, i) => i !== index);
+      return { ...p, image_url: newUrls };
+    });
+  }
+
+  function removeTag(index) {
+    const arr = tags.filter((_, i) => i !== index);
+    setTags(arr);
+    updateField("productTags", arr.join(", "));
+  }
+
+  const validateBeforeSend = () => {
+    if (!form.productName?.trim()) {
+      alert("Product name is required.");
+      return false;
+    }
+    return true;
+  };
+
+ // ...existing code...
+  async function handleSave(e) {
+    e?.preventDefault?.();
+    if (saving) return;
+    if (!validateBeforeSend()) return;
+
+    setSaving(true);
+
+    // If user added local blob previews, warn and stop — blob:// URLs cannot be POSTed as-is
+    const hasLocalBlobs = (form.image_url || []).some(u => typeof u === "string" && u.startsWith("blob:"));
+    if (hasLocalBlobs) {
+      alert(
+        "You have local image previews selected. These are not uploaded automatically. " +
+        "Remove them or upload real image URLs before saving."
+      );
+      setSaving(false);
+      return;
+    }
+
     const payload = {
       productName: form.productName,
       productDescription: form.productDescription,
@@ -94,50 +279,104 @@ const handleSave = async (e) => {
       productLength: Number(form.productLength) || 0,
       productWidth: Number(form.productWidth) || 0,
       productTags: form.productTags,
-      image_url: form.image_url,
-      // discountType is **not** sent – it is only UI
+      // only send remote URLs
+      image_url: sanitizeImageUrls(form.image_url),
     };
+
+    // optimistic local cache so refresh shows edits
+    upsertCachedProduct({ id, ...payload, __pendingUpdate: true, __updatedAt: Date.now() });
 
     console.log("Sending payload:", payload);
 
     try {
-      const { data, status } = await axios.put(
+      const resp = await axios.put(
         `https://acc-in-touch-1.onrender.com/api/Product/${id}`,
         payload,
-        {
-          headers: { "Content-Type": "application/json" },
-          timeout: 12_000,
-        }
+        { headers: { "Content-Type": "application/json" }, timeout: 20000 }
       );
 
-      console.log("Update response:", { status, data });
+      console.log("Update response:", resp?.status, resp?.data);
 
-      if (status === 200 || status === 201) {
+      if (resp && (resp.status === 200 || resp.status === 201)) {
+        if (resp.data && typeof resp.data === "object") {
+          const d = resp.data;
+          setForm((prev) => ({
+            ...prev,
+            productName: d.productName ?? prev.productName,
+            productDescription: d.productDescription ?? prev.productDescription,
+            basicPricing:
+              d.basicPricing !== undefined && d.basicPricing !== null
+                ? String(d.basicPricing)
+                : prev.basicPricing,
+            productSKU: d.productSKU ?? prev.productSKU,
+            productBarcode: d.productBarcode ?? prev.productBarcode,
+            productQuantity:
+              d.productQuantity !== undefined && d.productQuantity !== null
+                ? String(d.productQuantity)
+                : prev.productQuantity,
+            productCategory: d.productCategory ?? prev.productCategory,
+            productStatus: d.productStatus ?? prev.productStatus,
+            productWeight:
+              d.productWeight !== undefined && d.productWeight !== null
+                ? String(d.productWeight)
+                : prev.productWeight,
+            productHeight:
+              d.productHeight !== undefined && d.productHeight !== null
+                ? String(d.productHeight)
+                : prev.productHeight,
+            productLength:
+              d.productLength !== undefined && d.productLength !== null
+                ? String(d.productLength)
+                : prev.productLength,
+            productWidth:
+              d.productWidth !== undefined && d.productWidth !== null
+                ? String(d.productWidth)
+                : prev.productWidth,
+            productTags:
+              typeof d.productTags === "string"
+                ? d.productTags
+                : Array.isArray(d.productTags)
+                ? d.productTags.join(", ")
+                : prev.productTags,
+            image_url: Array.isArray(d.image_url) ? d.image_url : prev.image_url,
+          }));
+        }
+
+        // success — remove pending local cache and navigate
+        removeCachedProduct(id);
         alert("Product updated successfully!");
         navigate("/ProductManagement");
+        return;
       } else {
-        throw new Error(`Unexpected status ${status}`);
+        alert(`Unexpected response: ${resp?.status}`);
       }
     } catch (err) {
-      console.error("Update error:", err);
-      if (err.code === "ERR_NETWORK") {
-        alert("Network error");
-      } else if (err.response) {
-        const msg = err.response.data?.message || err.response.statusText;
-        alert(`Update failed (${err.response.status}): ${msg}`);
+      console.error("Update error (full):", err);
+
+      if (err.response) {
+        console.error("Server response data:", err.response.data);
+        console.error("Server response status:", err.response.status);
+        alert(`Update failed (${err.response.status}): ${JSON.stringify(err.response.data)} — changes saved locally.`);
+      } else if (err.request) {
+        console.error("No response received:", err.request);
+        alert("No response from server. Changes saved locally and will remain until server sync.");
       } else {
-        alert("Failed to update product. See console.");
+        console.error("Request setup error:", err.message);
+        alert(`Error: ${err.message}`);
       }
     } finally {
+      // ensure UI state is always reset
       setSaving(false);
     }
-  };
+  }
+// ...existing code...
 
   function handleCancel() {
+    if (saving) return;
     navigate("/ProductManagement");
   }
 
- if (loading) {
+  if (loading) {
     return (
       <div className="dashboard-root">
         <Sidebar />
@@ -151,27 +390,8 @@ const handleSave = async (e) => {
     );
   }
 
-  // Replace with a local import if you'd rather (import placeholder from "../assets/placeholder.png")
-  const placeholderUrl =
-    "https://cdn-icons-png.flaticon.com/512/7486/7486744.png";
-
-  // onError handler for images - swap to placeholder if original fails
-  function handleImageError(e) {
-    if (!e || !e.target) return;
-    e.target.onerror = null;
-    e.target.src = placeholderUrl;
-  }
-
-  // Inline SVG placeholder component (used when no images)
   const PlaceholderSVG = () => (
-    <svg
-      width="56"
-      height="56"
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
+    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M21 19V8a2 2 0 0 0-2-2h-3.2l-1.2-1.6A2 2 0 0 0 13.8 3H10.2a2 2 0 0 0-1.8 1.4L7.2 6H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h17z"
         stroke="#6b7280"
@@ -180,12 +400,7 @@ const handleSave = async (e) => {
         strokeLinejoin="round"
       />
       <circle cx="12" cy="14" r="3" stroke="#6b7280" strokeWidth="1.2" />
-      <path
-        d="M17 7h.01"
-        stroke="#6b7280"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
+      <path d="M17 7h.01" stroke="#6b7280" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 
@@ -194,54 +409,24 @@ const handleSave = async (e) => {
       <Sidebar />
       <div className="dashboard-main">
         <ProductTopbar />
-
         <div className="dashboard-content">
           <div className="editproductadd-product-container full-page">
-            {/* TOP HEADER */}
-            <div
-              className="editproductedit-top-header"
-              style={{ marginBottom: 12 }}
-            >
+            <div className="editproductedit-top-header" style={{ marginBottom: 12 }}>
               <div className="editproductedit-top-info">
-                <h2
-                  className="editproductedit-top-title"
-                  style={{
-                    margin: 0,
-                    fontSize: 20,
-                    fontWeight: 700,
-                    color: "#0b1220",
-                    lineHeight: 1.1,
-                  }}
-                >
-                  {form.productName}
+                <h2 className="editproductedit-top-title" style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>
+                  {form.productName || "Edit Product"}
                 </h2>
-                <p
-                  className="editproductedit-top-desc"
-                  style={{
-                    margin: "6px 0 0 0",
-                    fontSize: 13,
-                    color: "#6b7280",
-                    maxWidth: "72ch",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
+                <p className="editproductedit-top-desc" style={{ margin: "6px 0 0 0", fontSize: 13, color: "#6b7280" }}>
                   {form.productDescription}
                 </p>
               </div>
             </div>
 
-            {/* top breadcrumb + actions */}
             <div className="editproductadd-product-top top-v2">
               <div className="editproductbreadcrumb">
                 <span
                   className="editproductcrumb-link"
-                  style={{
-                    color: "#4f46e5",
-                    cursor: "pointer",
-                    textDecoration: "underline",
-                  }}
+                  style={{ color: "#4f46e5", cursor: "pointer", textDecoration: "underline" }}
                   onClick={() => navigate("/ProductManagement")}
                 >
                   Product
@@ -251,180 +436,92 @@ const handleSave = async (e) => {
               </div>
 
               <div className="editproducttop-buttons">
-                {/* Cancel */}
-                <button
-                  type="button"
-                  className="editproductbtn cancel outlined"
-                  onClick={handleCancel}
-                  disabled={saving}
-                >
+                <button type="button" className="editproductbtn cancel outlined" onClick={handleCancel} disabled={saving}>
                   <span className="editproducticon-circle">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                      <path
-                        d="M18 6L6 18M6 6L18 18"
-                        stroke="#6b7280"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
+                      <path d="M18 6L6 18M6 6L18 18" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </span>
                   <span className="editproductbtn-text">Cancel</span>
                 </button>
 
-                {/* Save */}
                 <button
-                  type="submit"
-                  className="editproductbtn add-product filled"
+                  type="button"
                   onClick={handleSave}
+                  className="editproductbtn add-product filled"
                   disabled={saving}
                 >
-                  <span className="icon-box">
-                    {saving ? (
-                      <span style={{ fontSize: 12 }}>Saving...</span>
-                    ) : (
-                      <svg viewBox="0 0 24 24">
-                        <path
-                          d="M7 10a5 5 0 0 1 10 0v2"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.6"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <rect
-                          x="4"
-                          y="10"
-                          width="16"
-                          height="10"
-                          rx="2"
-                          ry="2"
-                          stroke="none"
-                          fill="currentColor"
-                          opacity="0.06"
-                        />
+                  <span className="icon-box" aria-hidden>
+                    {saving ? <span style={{ fontSize: 12 }}>●</span> : (
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
+                        <path d="M7 10a5 5 0 0 1 10 0v2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                        <rect x="4" y="10" width="16" height="10" rx="2" stroke="none" fill="currentColor" opacity="0.06" />
                         <circle cx="12" cy="15" r="1.2" fill="currentColor" />
                       </svg>
                     )}
                   </span>
-                  <span className="editproductbtn-text">
-                    {saving ? "Saving..." : "Save Product"}
-                  </span>
+
+                  <span className="editproductbtn-text">{saving ? "Saving..." : "Save Product"}</span>
                 </button>
               </div>
             </div>
 
-            {/* Main content 2-column layout (left form, right sidebar) */}
-            <div className="editproductadd-product-layout">
+            <form id="edit-product-form" onSubmit={handleSave} className="editproductadd-product-layout" style={{ gap: 20 }}>
               <div className="editproductadd-left">
-                {/* General Information */}
                 <section className="editproductcard">
                   <h3 className="editproductcard-title">General Information</h3>
                   <div className="editproductform-row">
-                    <lable className="editproductlabel">Product Name</lable>
-                    <input
-                      className="editproductinput"
-                      placeholder="Product Name"
-                      value={form.productName}
-                      onChange={(e) =>
-                        updateField("productName", e.target.value)
-                      }
-                    />
+                    <label className="editproductlabel">Product Name</label>
+                    <input className="editproductinput" placeholder="Product Name" value={form.productName} onChange={(e) => updateField("productName", e.target.value)} disabled={saving} />
                   </div>
 
                   <div className="editproductform-row">
-                    <lable className="editproductlabel">
-                      Product Description
-                    </lable>
-                    <textarea
-                      className="editproducttextarea"
-                      placeholder="Type product description here…"
-                      value={form.productDescription}
-                      onChange={(e) =>
-                        updateField("productDescription", e.target.value)
-                      }
-                      rows={5}
-                    />
+                    <label className="editproductlabel">Product Description</label>
+                    <textarea className="editproducttextarea" placeholder="Type product description here…" value={form.productDescription} onChange={(e) => updateField("productDescription", e.target.value)} rows={5} disabled={saving} />
                   </div>
                 </section>
 
-                {/* Media (updated: default placeholder + centered Add Image) */}
                 <section className="editproductcard">
                   <h3 className="editproductcard-title">Media</h3>
 
-                  <div
-                    className="editproductmedia-dropzone"
-                    role="region"
-                    aria-label="Product media"
-                  >
-                    {/* thumbnails (if present) */}
-                    {form.images && form.images.length > 0 ? (
+                  <div className="editproductmedia-dropzone" role="region" aria-label="Product media">
+                    {form.image_url && form.image_url.length > 0 ? (
                       <div className="editproductthumbnails">
-                        {form.images.map((src, i) => (
+                        {form.image_url.map((src, i) => (
                           <div className="editproductthumb" key={i}>
-                            <img
-                              src={src}
-                              alt={`product-${i}`}
-                              onError={handleImageError}
-                            />
+                            <img src={src} alt={`product-${i}`} onError={handleImageError} />
+                            <button type="button" className="editproductthumb-remove" onClick={() => handleRemoveImage(i)} aria-label={`Remove image ${i + 1}`}>
+                              ✕
+                            </button>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div
-                        className="editproductmedia-inner"
-                        aria-hidden="true"
-                      >
-                        {/* show an inline SVG placeholder when no images */}
+                      <div className="editproductmedia-inner" aria-hidden="true">
                         <PlaceholderSVG />
                       </div>
                     )}
 
-                    <div className="editproductmedia-note">
-                      Drag and drop image here, or click add image
-                    </div>
+                    <div className="editproductmedia-note">Drag and drop image here, or click add image</div>
 
-                    <button
-                      type="editproductbutton"
-                      className="editproductmedia-add-btn"
-                      onClick={() => alert("Add image - implement file picker")}
-                    >
+                    <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} multiple onChange={handleFilesSelected} />
+                    <button type="button" className="editproductmedia-add-btn" onClick={onAddImageClick} disabled={saving}>
                       Add Image
                     </button>
                   </div>
                 </section>
 
-                {/* Pricing */}
                 <div className="editproductcard">
                   <h3 className="editproductcard-title">Pricing</h3>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "row",
-                      gap: "3vw",
-                    }}
-                  >
-                    <div className="editproductform-row">
-                      <lable className="editproductlabel">Bacis Pricing</lable>
-                      <input
-                        className="editproductinput"
-                        placeholder="$ Type base price here…"
-                        value={form.basicPricing}
-                        onChange={(e) =>
-                          updateField("basicPricing", e.target.value)
-                        }
-                      />
+                  <div style={{ display: "flex", flexDirection: "row", gap: "3vw", alignItems: "flex-start" }}>
+                    <div className="editproductform-row" style={{ minWidth: 200 }}>
+                      <label className="editproductlabel">Basic Pricing</label>
+                      <input className="editproductinput" placeholder="$ Type base price here…" value={form.basicPricing} onChange={(e) => updateField("basicPricing", e.target.value)} disabled={saving} />
                     </div>
-                    <div className="editproductform-row two">
-                      <lable className="editproductlabel">Discount</lable>
-                      <select
-                        className="editproductselect"
-                        value={form.discountType}
-                        onChange={(e) =>
-                          updateField("discountType", e.target.value)
-                        }
-                      >
-                        <option>Select Discount</option>
+
+                    <div className="editproductform-row two" style={{ minWidth: 160 }}>
+                      <label className="editproductlabel">Discount</label>
+                      <select className="editproductselect" value={form.discountType} onChange={(e) => updateField("discountType", e.target.value)} disabled={saving}>
                         <option value="0%">0%</option>
                         <option value="10%">10%</option>
                         <option value="20%">20%</option>
@@ -436,68 +533,26 @@ const handleSave = async (e) => {
                   </div>
                 </div>
 
-                {/* Inventory */}
                 <section className="editproductcard">
                   <h3 className="editproductcard-title">Inventory</h3>
                   <div className="editproductform-row three">
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        width: "25vw",
-                      }}
-                    >
-                      <lable className="editproductlabel">Product SKU</lable>
-                      <input
-                        className="editproductinput"
-                        placeholder="SKU"
-                        value={form.productSKU}
-                        // onChange={(e) => updateField("productSKU", e.target.value)}
-                        readOnly
-                      />
+                    <div style={{ display: "flex", flexDirection: "column", width: "25vw" }}>
+                      <label className="editproductlabel">Product SKU</label>
+                      <input className="editproductinput" placeholder="SKU" value={form.productSKU} readOnly />
                     </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        width: "25vw",
-                      }}
-                    >
-                      <lable className="editproductlabel">
-                        Product Barcode
-                      </lable>
 
-                      <input
-                        className="editproductinput"
-                        placeholder="Barcode"
-                        value={form.productBarcode}
-                        readOnly
-                        // onChange={(e) => updateField("productBarcode", e.target.value)}
-                      />
+                    <div style={{ display: "flex", flexDirection: "column", width: "25vw" }}>
+                      <label className="editproductlabel">Product Barcode</label>
+                      <input className="editproductinput" placeholder="Barcode" value={form.productBarcode} readOnly />
                     </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        width: "25vw",
-                      }}
-                    >
-                      <lable className="editproductlabel">
-                        Product Quantity
-                      </lable>
-                      <input
-                        className="editproductinput"
-                        placeholder="Quantity"
-                        value={form.productQuantity}
-                        onChange={(e) =>
-                          updateField("productQuantity", e.target.value)
-                        }
-                      />
+
+                    <div style={{ display: "flex", flexDirection: "column", width: "25vw" }}>
+                      <label className="editproductlabel">Product Quantity</label>
+                      <input className="editproductinput" placeholder="Quantity" value={form.productQuantity} onChange={(e) => updateField("productQuantity", e.target.value)} disabled={saving} />
                     </div>
                   </div>
                 </section>
 
-                {/* Shipping */}
                 <section className="editproductcard">
                   <h3 className="editproductcard-title">Shipping</h3>
                   <div className="editproductshipping-toggle">
@@ -505,129 +560,65 @@ const handleSave = async (e) => {
                     <label htmlFor="physical">This is a physical product</label>
                   </div>
 
-                  <div
-                    className="editproductform-row four"
-                    style={{ marginTop: 12 }}
-                  >
+                  <div className="editproductform-row four" style={{ marginTop: 12 }}>
                     <div style={{ width: "13vw" }}>
-                      <input
-                        className="editproductinput"
-                        placeholder="Weight"
-                        value={form.productWeight}
-                        onChange={(e) =>
-                          updateField("productWeight", e.target.value)
-                        }
-                      />
+                      <input className="editproductinput" placeholder="Weight" value={form.productWeight} onChange={(e) => updateField("productWeight", e.target.value)} disabled={saving} />
                     </div>
                     <div style={{ width: "13vw" }}>
-                      <input
-                        className="editproductinput"
-                        placeholder="Height (cm)"
-                        value={form.productHeight}
-                        onChange={(e) =>
-                          updateField("productHeight", e.target.value)
-                        }
-                      />
+                      <input className="editproductinput" placeholder="Height (cm)" value={form.productHeight} onChange={(e) => updateField("productHeight", e.target.value)} disabled={saving} />
                     </div>
                     <div style={{ width: "13vw" }}>
-                      <input
-                        className="editproductinput"
-                        placeholder="Length (cm)"
-                        value={form.productLength}
-                        onChange={(e) =>
-                          updateField("productLength", e.target.value)
-                        }
-                      />
+                      <input className="editproductinput" placeholder="Length (cm)" value={form.productLength} onChange={(e) => updateField("productLength", e.target.value)} disabled={saving} />
                     </div>
                     <div style={{ width: "13vw" }}>
-                      <input
-                        className="editproductinput"
-                        placeholder="Width (cm)"
-                        value={form.productWidth}
-                        onChange={(e) =>
-                          updateField("productWidth", e.target.value)
-                        }
-                      />
+                      <input className="editproductinput" placeholder="Width (cm)" value={form.productWidth} onChange={(e) => updateField("productWidth", e.target.value)} disabled={saving} />
                     </div>
                   </div>
                 </section>
               </div>
 
-              {/* Right sidebar */}
               <div className="editproductadd-right">
                 <div>
                   <section className="editproductcard sidebar-card">
                     <h3 className="editproductcard-title">Category</h3>
                     <label className="editproductlabel">Product Category</label>
-                    <select
-                      className="editproductselect"
-                      value={form.productCategory}
-                      onChange={(e) =>
-                        updateField("productCategory", e.target.value)
-                      }
-                    >
-                      <option>Earrings</option>
+                    <select className="editproductselect" value={form.productCategory} onChange={(e) => updateField("productCategory", e.target.value)} disabled={saving}>
+                      <option value="">Select category</option>
+                      <option value="earrings">Earrings</option>
                       <option value="scrunchies">Scrunchies</option>
                       <option value="claws">Claws</option>
                       <option value="hairBows">Hair Bows</option>
                     </select>
 
-                    <label
-                      className="editproductlabel"
-                      style={{ marginTop: 12 }}
-                    >
-                      Product Tags
-                    </label>
-                    <input
-                      className="editproductinput"
-                      placeholder="Product Tgas"
-                      value={form.productTags}
-                      onChange={(e) =>
-                        updateField("productTags", e.target.value)
-                      }
-                    />
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      {(form.tags || []).map((t, i) => (
-                        <div
-                          key={i}
-                          style={{
-                            background: "#f3f0ff",
-                            padding: "6px 8px",
-                            borderRadius: 8,
-                            fontWeight: 700,
-                            color: "#6d28d9",
-                          }}
-                        >
+                    <label className="editproductlabel" style={{ marginTop: 12 }}>Product Tags</label>
+                    <input className="editproductinput" placeholder="tag1, tag2" value={form.productTags} onChange={(e) => updateField("productTags", e.target.value)} disabled={saving} />
+
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                      {tags.map((t, i) => (
+                        <div key={i} style={{ background: "#f3f0ff", padding: "6px 8px", borderRadius: 8, fontWeight: 700, color: "#6d28d9", display: "flex", alignItems: "center", gap: 6 }}>
                           {t}
+                          <button type="button" onClick={() => removeTag(i)} style={{ border: "none", background: "transparent", cursor: "pointer", fontWeight: 700, color: "#6d28d9", padding: 0 }}>×</button>
                         </div>
                       ))}
                     </div>
                   </section>
                 </div>
+
                 <div>
-                  <section
-                    className="editproductcard sidebar-card"
-                    style={{ marginTop: 12 }}
-                  >
+                  <section className="editproductcard sidebar-card" style={{ marginTop: 12 }}>
                     <h3 className="editproductcard-title">Status</h3>
                     <label className="editproductlabel">Product Status</label>
-                    <select
-                      className="editproductselect"
-                      value={form.productStatus}
-                      onChange={(e) =>
-                        updateField("productStatus", e.target.value)
-                      }
-                    >
+                    <select className="editproductselect" value={form.productStatus} onChange={(e) => updateField("productStatus", e.target.value)} disabled={saving}>
                       <option value="inStock">In Stock</option>
-                      <option value="lowStack">Low Stock</option>
+                      <option value="lowStock">Low Stock</option>
                       <option value="outOfStock">Out of Stock</option>
-                      <option value="disscontinued">Discontinued</option>
+                      <option value="discontinued">Discontinued</option>
                       <option value="draft">Draft</option>
                     </select>
                   </section>
                 </div>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       </div>

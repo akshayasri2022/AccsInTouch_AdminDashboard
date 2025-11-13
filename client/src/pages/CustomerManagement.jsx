@@ -9,7 +9,7 @@ import "react-toastify/dist/ReactToastify.css";
 
 const axiosAPI = axios.create({
   baseURL: "https://acc-in-touch-1.onrender.com/api",
-  timeout: 10000,
+  timeout: 5000,
   headers: {
     "Content-Type": "application/json",
   },
@@ -23,10 +23,8 @@ async function postWithRetry(url, payload, attempts = 3, initialDelay = 1000) {
       return res;
     } catch (err) {
       lastErr = err;
-      // if it's a client error (4xx) we shouldn't retry
       const status = err?.response?.status;
       if (status && status >= 400 && status < 500) break;
-      // exponential backoff: 1s, 2s, 4s
       const delay = initialDelay * Math.pow(2, i);
       await new Promise((r) => setTimeout(r, delay));
     }
@@ -41,6 +39,7 @@ function unwrap(res) {
 }
 
 const LS_KEY = "cm_unsynced_customers_v1";
+const LS_DEL_KEY = "cm_deleted_customers_v1";
 
 function loadUnsyncedFromStorage() {
   try {
@@ -60,9 +59,16 @@ function saveUnsyncedToStorage(arr) {
   }
 }
 function addUnsyncedToStorage(item) {
-  const arr = loadUnsyncedFromStorage();
-  arr.unshift(item);
-  saveUnsyncedToStorage(arr);
+  // upsert: avoid duplicates when same temp is added twice
+  try {
+    const arr = loadUnsyncedFromStorage();
+    const idx = arr.findIndex(x => String(x.id) === String(item.id));
+    if (idx === -1) arr.unshift(item);
+    else arr[idx] = item;
+    saveUnsyncedToStorage(arr);
+  } catch (e) {
+    console.warn("Failed to add/upsert unsynced to localStorage", e);
+  }
 }
 function removeUnsyncedFromStorage(tempId) {
   const arr = loadUnsyncedFromStorage().filter(x => String(x.id) !== String(tempId));
@@ -83,6 +89,45 @@ function upsertUnsyncedToStorage(item) {
     console.warn("Failed to upsert unsynced to localStorage", e);
   }
 }
+
+function loadDeletedFromStorage() {
+  try {
+    const raw = localStorage.getItem(LS_DEL_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch (e) {
+    console.warn("Failed to read deleted list from localStorage", e);
+    return [];
+  }
+}
+function saveDeletedToStorage(arr) {
+  try {
+    localStorage.setItem(LS_DEL_KEY, JSON.stringify(arr || []));
+  } catch (e) {
+    console.warn("Failed to save deleted list to localStorage", e);
+  }
+}
+function addDeletedToStorage(id) {
+  try {
+    const arr = loadDeletedFromStorage();
+    const sid = String(id);
+    if (!arr.includes(sid)) {
+      arr.unshift(sid);
+      saveDeletedToStorage(arr);
+    }
+  } catch (e) {
+    console.warn("Failed to add deleted id to storage", e);
+  }
+}
+function removeDeletedFromStorage(id) {
+  try {
+    const arr = loadDeletedFromStorage().filter(x => String(x) !== String(id));
+    saveDeletedToStorage(arr);
+  } catch (e) {
+    console.warn("Failed to remove deleted id from storage", e);
+  }
+}
+
 const MOCK_CUSTOMERS = Array.from({ length: 20 }).map((_, i) => {
   const names = [
     "Linda Blair","John Bushmill","Laura Prichet",
@@ -149,6 +194,28 @@ function normalizeCustomer(raw) {
     __raw: raw,
   };
 }
+
+function assignHumanIdsToUnsynced(unsynced, existing) {
+  const u = Array.isArray(unsynced) ? [...unsynced] : [];
+  const ex = Array.isArray(existing) ? existing : [];
+  let max = 0;
+  const collect = (arr) => arr.forEach(c => {
+    if (!c) return;
+    const h = c.humanId ?? (typeof c.id === "number" ? `ID-${String(c.id).padStart(3,'0')}` : undefined);
+    if (h && String(h).startsWith("ID-")) {
+      const n = parseInt(String(h).replace(/^ID-/, ''), 10);
+      if (!isNaN(n)) max = Math.max(max, n);
+    }
+  });
+  collect(ex);
+  collect(u);
+  return u.map(item => {
+    if (item.humanId) return item;
+    max++;
+    return { ...item, humanId: `ID-${String(max).padStart(3,'0')}` };
+  });
+}
+
 function ToggleSwitch({ checked, onChange, ariaLabel }) {
   const wrapStyle = {
     display: "inline-block",
@@ -203,6 +270,15 @@ function ToggleSwitch({ checked, onChange, ariaLabel }) {
   );
 }
 
+function renderFriendlyId(c) {
+  if (!c) return "";
+  if (c.humanId) return c.humanId;
+  if (String(c.id).startsWith("temp-")) return "Saving...";
+  if (typeof c.id === "number") return `ID-${String(c.id).padStart(3, "0")}`;
+  return String(c.id);
+}
+
+// ...existing code...
 function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
   const [customer, setCustomer] = useState(initialCustomer || null);
   const [loading, setLoading] = useState(false);
@@ -210,7 +286,6 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
   const [form, setForm] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
- 
   useEffect(() => {
     if (initialCustomer) {
       setCustomer(initialCustomer);
@@ -222,14 +297,11 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
       });
     }
   }, [initialCustomer]);
+
   useEffect(() => {
     if (id == null) return;
-    if (String(id).startsWith("temp-")) {
-      return;
-    }
-    if (initialCustomer) {
-      return;
-    }
+    if (String(id).startsWith("temp-")) return;
+    if (initialCustomer) return;
 
     let canceled = false;
     async function fetchOne() {
@@ -292,7 +364,6 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
   }, [id, initialCustomer]);
 
   if (!id) return null;
-
   if (loading && !customer) return (
     <div className="cm-modal-backdrop" role="dialog" aria-modal="true">
       <div className="cm-modal" onClick={(e) => e.stopPropagation()}>
@@ -300,7 +371,6 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
       </div>
     </div>
   );
-
   if (!customer) return null;
 
   async function handleDelete() {
@@ -319,6 +389,7 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
       const status = res && res.status ? res.status : (res && res.data && res.data.status ? res.data.status : null);
 
       if (status && Math.floor(status / 100) === 2) {
+        removeDeletedFromStorage(customer.id);
         onDeleted(customer.id);
         onClose();
         toast.success("Customer deleted successfully.");
@@ -326,9 +397,11 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
       }
 
       console.warn("DELETE returned non-2xx status:", res);
+      // tombstone locally so refresh doesn't bring back the record
+      addDeletedToStorage(customer.id);
       onDeleted(customer.id);
       onClose();
-      toast.success("Customer removed.");
+      toast.success("Customer removed locally.");
     } catch (err) {
       console.error("DELETE failed:", err);
 
@@ -337,6 +410,7 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
         || (err?.response?.status >= 200 && err?.response?.status < 300);
 
       if (maybeDeleted) {
+        removeDeletedFromStorage(customer.id);
         onDeleted(customer.id);
         onClose();
         toast.success("Customer deleted (server indicated not found).");
@@ -344,6 +418,7 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
       }
 
       if (window.confirm("Failed to delete on server. Remove locally anyway?")) {
+        addDeletedToStorage(customer.id);
         if (String(customer.id).startsWith("temp-")) removeUnsyncedFromStorage(customer.id);
         onDeleted(customer.id);
         onClose();
@@ -355,79 +430,97 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
   }
 
   async function handleUpdate(ev) {
-  ev.preventDefault();
-  if (!form.name.trim() || !form.email.includes("@")) {
-    toast.error("Please provide a valid name and email.");
-    return;
-  }
-
-  const payload = {
-    ...customer,
-    name: form.name,
-    email: form.email,
-    phone: form.phone,
-    address: form.address,
-  };
-
-  // Fast UX: update UI immediately and close modal
-  setCustomer(payload);
-  onUpdated(payload);
-  setEditMode(false);
-  onClose();
-  toast.success("Customer updated (local).");
-
-  // Background sync: attempt PUT with retries and reconcile when response arrives
-  const maxAttempts = 3;
-  let attempt = 0;
-  let lastErr = null;
-
-  async function tryPut() {
-    attempt++;
-    try {
-      const res = await axiosAPI.put(`/customer/${customer.id}`, payload);
-      const serverRaw = unwrap(res) || res.data;
-      if (serverRaw) {
-        const serverNormalized = normalizeCustomer(serverRaw) || serverRaw;
-        onUpdated(serverNormalized);
-        toast.success("Customer updated on server.");
-        return true;
-      } else if (res && typeof res.status === "number" && res.status >= 200 && res.status < 300) {
-        
-        toast.success("Customer update acknowledged by server.");
-        return true;
-      } else {
-        console.warn("PUT returned unexpected shape on attempt", attempt, res);
-        lastErr = new Error("Unexpected PUT response");
-        return false;
-      }
-    } catch (err) {
-      lastErr = err;
-      if (err && err.code === "ECONNABORTED") {
-        console.warn(`PUT attempt ${attempt} timed out (ECONNABORTED).`);
-      } else {
-        console.warn(`PUT attempt ${attempt} failed:`, err);
-      }
-      return false;
+    ev.preventDefault();
+    if (!form.name.trim() || !form.email.includes("@")) {
+      toast.error("Please provide a valid name and email.");
+      return;
     }
-  }
-  while (attempt < maxAttempts) {
-    const ok = await tryPut();
-    if (ok) return;
-    const wait = 500 * (2 ** (attempt - 1));
-    await new Promise(r => setTimeout(r, wait));
-  }
-  console.warn("PUT failed in background after retries — keeping local changes and marking as unsynced.", lastErr);
-  const localCopy = { ...payload, __syncError: true };
-  onUpdated(localCopy);
 
-  try {
-    upsertUnsyncedToStorage(localCopy);
-  } catch (e) {
-    console.warn("Failed to persist unsynced update", e);
+    setSubmitting(true);
+
+    const payload = {
+      ...customer,
+      name: form.name.trim(),
+      email: form.email.trim(),
+      phone: form.phone,
+      address: form.address,
+    };
+
+    // optimistic update in UI and persist immediately so refresh won't lose it
+    setCustomer(payload);
+    onUpdated(payload);
+    try {
+      upsertUnsyncedToStorage({ ...payload, __pendingUpdate: true });
+    } catch (e) {
+      console.warn("Failed to persist optimistic update", e);
+    }
+
+    // if temp item, keep local-only and close
+    if (String(payload.id).startsWith("temp-")) {
+      try {
+        upsertUnsyncedToStorage({ ...payload, __local: true, __updatedAt: Date.now() });
+      } catch (e) { console.warn(e); }
+      setSubmitting(false);
+      setEditMode(false);
+      onClose();
+      toast.success("Saved locally (will sync when online).");
+      return;
+    }
+
+    const maxAttempts = 3;
+    let attempt = 0;
+    let lastErr = null;
+    let success = false;
+
+    while (attempt < maxAttempts && !success) {
+      attempt++;
+      try {
+        const res = await axiosAPI.put(`/customer/${encodeURIComponent(payload.id)}`, payload);
+        const serverRaw = unwrap(res) || res.data;
+        if (serverRaw) {
+          const serverNormalized = normalizeCustomer(serverRaw) || serverRaw;
+          // apply canonical server record
+          onUpdated(serverNormalized);
+          // remove persisted pending copy
+          try { removeUnsyncedFromStorage(payload.id); } catch (e) { /* ignore */ }
+          toast.success("Customer updated on server.");
+        } else if (res && typeof res.status === "number" && res.status >= 200 && res.status < 300) {
+          try { removeUnsyncedFromStorage(payload.id); } catch (e) { /* ignore */ }
+          toast.success("Customer update acknowledged by server.");
+        } else {
+          lastErr = new Error("Unexpected PUT response");
+          throw lastErr;
+        }
+        success = true;
+        break;
+      } catch (err) {
+        lastErr = err;
+        // retry on transient errors
+        if (attempt < maxAttempts) {
+          const wait = 500 * Math.pow(2, attempt - 1);
+          await new Promise(r => setTimeout(r, wait));
+        } else {
+          console.warn("PUT failed after retries", err);
+        }
+      }
+    }
+
+    if (!success) {
+      // mark persisted item as having a sync error
+      const localCopy = { ...payload, __syncError: true, __updatedAt: Date.now() };
+      onUpdated(localCopy);
+      try {
+        upsertUnsyncedToStorage(localCopy);
+      } catch (e) {
+        console.warn("Failed to persist unsynced update", e);
+      }
+      toast.info("Saved locally — will retry syncing in background.");
+    }
+
+    setSubmitting(false);
+    setEditMode(false);
+    onClose();
   }
-
-}
-
 
   return (
     <div className="cm-modal-backdrop" role="dialog" aria-modal="true" onClick={() => { if (!submitting) onClose(); }}>
@@ -458,7 +551,7 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
                   <span className="cm-icon">📇</span>
                   <div>
                     <div className="cm-info-title">Customer ID</div>
-                    <div className="cm-info-sub">ID-{String(customer.id).padStart(6, "0")}</div>
+                    <div className="cm-info-sub">{renderFriendlyId(customer)}</div>
                   </div>
                 </li>
 
@@ -550,8 +643,8 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
     </div>
   );
 }
+// ...existing code...
 
-/* ---------------- Add Customer Modal (optimistic add + persisted) ---------------- */
 function AddCustomerModal({ onClose, onAdd, onSync }) {
   useEffect(() => {
     function onKey(e) { if (e.key === "Escape") onClose(); }
@@ -648,7 +741,7 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
     } catch (err) {
       console.error("POST failed after retries (optimistic flow):", err, err?.response?.data || err?.message);
       if (onSync) onSync(tempId, { ...tempItem, __syncError: true });
-      const arr = loadUnsyncedFromStorage().map(x => x.id === tempId ? { ...x, __syncError: true } : x);
+      const arr = loadUnsyncedFromStorage().map(x => String(x.id) === tempId ? { ...x, __syncError: true } : x);
       saveUnsyncedToStorage(arr);
       toast.info("Saved locally — will retry syncing in background.", {
         containerId: "center",
@@ -755,7 +848,6 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
   );
 }
 
-/* ---------------- Main Page (card grid) ---------------- */
 export default function CustomerManagement() {
   const [customers, setCustomers] = useState([]); // loaded from API
   const [query, setQuery] = useState("");
@@ -769,32 +861,43 @@ export default function CustomerManagement() {
   const [ordersMenuOpen, setOrdersMenuOpen] = useState(false);
   const ordersMenuRef = useRef(null);
   const gridRef = useRef(null);
+
   async function fetchCustomers() {
     try {
       const res = await axiosAPI.get("/customer");
-      console.log("API /customer raw response:", res);
       const data = unwrap(res);
       const serverList = Array.isArray(data) ? data : [];
       const normalizedServer = serverList.map(item => {
         const n = normalizeCustomer(item) || item;
-        if (!n.id) {
-          console.warn("normalizeCustomer produced no id for item:", item);
-        }
+        if (!n.id) console.warn("normalizeCustomer produced no id for item:", item);
         return n;
       });
-      const unsynced = loadUnsyncedFromStorage() || [];
+
+      // load unsynced and tombstones
+      let unsynced = loadUnsyncedFromStorage() || [];
+      // ensure humanId assignment for display
+      unsynced = assignHumanIdsToUnsynced(unsynced, normalizedServer);
+      saveUnsyncedToStorage(unsynced);
+
+      const deleted = new Set(loadDeletedFromStorage().map(String));
+      // filter out server records that have been tombstoned locally
+      const filteredServer = normalizedServer.filter(s => !deleted.has(String(s.id)));
+
       const unsyncedMap = new Map(unsynced.map(u => [String(u.id), u]));
-      const mergedServer = normalizedServer.map(s => {
+      const mergedServer = filteredServer.map(s => {
         const override = unsyncedMap.get(String(s.id));
         return override ? override : s;
       });
-      const pendingTemps = unsynced.filter(u => String(u.id).startsWith("temp-"))
+      const pendingTemps = unsynced.filter(u => String(u.id).startsWith("temp-"));
+      // don't show server records that were tombstoned
       setCustomers([...pendingTemps, ...mergedServer]);
     } catch (err) {
       console.error("GET /customer failed:", err);
       toast.info("Failed to load customers from server — showing local data.");
-      const unsynced = loadUnsyncedFromStorage() || [];
-      setCustomers([...unsynced, ...MOCK_CUSTOMERS]);
+      const unsynced = assignHumanIdsToUnsynced(loadUnsyncedFromStorage() || [], MOCK_CUSTOMERS);
+      saveUnsyncedToStorage(unsynced);
+      const deleted = new Set(loadDeletedFromStorage().map(String));
+      setCustomers(unsynced.filter(u => !deleted.has(String(u.id))).concat(MOCK_CUSTOMERS.filter(m => !deleted.has(String(m.id)))));
     }
   }
 
@@ -817,9 +920,13 @@ export default function CustomerManagement() {
             setCustomers(prev => {
               const idx = prev.findIndex(c => String(c.id) === String(temp.id));
               if (idx === -1) return [normalized, ...prev];
-              const next = [...prev]; next[idx] = normalized; return next;
+              const next = [...prev]; 
+              if (!normalized.humanId && prev[idx]?.humanId) normalized.humanId = prev[idx].humanId;
+              next[idx] = normalized; 
+              return next;
             });
             removeUnsyncedFromStorage(temp.id);
+            removeDeletedFromStorage(temp.id);
             toast.success(`Synced queued customer: ${temp.name}`, {
               containerId: "center",
               toastClassName: "react-toastify-center",
@@ -827,14 +934,12 @@ export default function CustomerManagement() {
             });
           } else if (r && typeof r.status === "number" && r.status >= 200 && r.status < 300) {
             removeUnsyncedFromStorage(temp.id);
-            console.log("Server acknowledged queued create for temp:", temp.id, "status:", r.status);
             toast.success("Server acknowledged queued customer.", {
               containerId: "center",
               toastClassName: "react-toastify-center",
               autoClose: 1600,
             });
           } else {
-            console.warn("Unexpected response while syncing queued customer:", r);
             const mark = { ...temp, __syncError: true };
             upsertUnsyncedToStorage(mark);
           }
@@ -844,6 +949,7 @@ export default function CustomerManagement() {
       }
     })();
   }, []);
+
   useEffect(() => {
     function onDocClick(e) {
       if (!ordersMenuRef.current) return;
@@ -869,7 +975,8 @@ export default function CustomerManagement() {
       if (!ordersMatch(c)) return false;
       if (!q) return true;
       return (
-        String(c.id).includes(q) ||
+        (String(c.id) && String(c.id).toLowerCase().includes(q)) ||
+        (c.humanId && c.humanId.toLowerCase().includes(q)) ||
         (c.name && c.name.toLowerCase().includes(q)) ||
         (c.email && c.email.toLowerCase().includes(q))
       );
@@ -898,24 +1005,46 @@ export default function CustomerManagement() {
       return n;
     });
   }
+
   function handleAdd(tempOrCreated) {
-    setCustomers(prev => {
-      return [tempOrCreated, ...prev];
+    // assign humanId and persist to unsynced storage so it survives refresh
+    const unsynced = loadUnsyncedFromStorage() || [];
+    let max = 0;
+    const collect = (arr) => (arr || []).forEach(c => {
+      if (!c) return;
+      const h = c.humanId ?? (typeof c.id === "number" ? `ID-${String(c.id).padStart(3,'0')}` : undefined);
+      if (h && String(h).startsWith("ID-")) {
+        const n = parseInt(String(h).replace(/^ID-/, ''), 10);
+        if (!isNaN(n)) max = Math.max(max, n);
+      }
     });
+    collect(customers);
+    collect(unsynced);
+    max++;
+    const humanId = `ID-${String(max).padStart(3,'0')}`;
+    const item = { ...tempOrCreated, humanId };
+    addUnsyncedToStorage(item);
+    setCustomers(prev => [item, ...prev]);
     setPage(1);
   }
+
   function handleSync(tempId, serverObj) {
     setCustomers(prev => {
       const idx = prev.findIndex(c => String(c.id) === String(tempId));
       if (idx === -1) {
+        // preserve humanId from stored temp if server doesn't provide
+        const stored = loadUnsyncedFromStorage().find(u => String(u.id) === String(tempId));
+        if (stored && stored.humanId && !serverObj.humanId) serverObj.humanId = stored.humanId;
         return [serverObj, ...prev];
       }
       const next = [...prev];
+      if (!serverObj.humanId && prev[idx]?.humanId) serverObj.humanId = prev[idx].humanId;
       next[idx] = serverObj;
       return next;
     });
     if (serverObj && !serverObj.__syncError) {
       removeUnsyncedFromStorage(tempId);
+      removeDeletedFromStorage(serverObj.id ?? tempId);
       toast.success("Local item replaced with server record.", {
         containerId: "center",
         toastClassName: "react-toastify-center",
@@ -930,8 +1059,10 @@ export default function CustomerManagement() {
 
   function handleDeletedCustomer(id) {
     if (String(id).startsWith("temp-")) removeUnsyncedFromStorage(id);
+    else addDeletedToStorage(id);
     setCustomers(prev => prev.filter(c => String(c.id) !== String(id)));
   }
+
   function handleExportVisible() {
     const keysSet = new Set();
     filtered.forEach(item => {
@@ -943,12 +1074,12 @@ export default function CustomerManagement() {
       });
     });
     const preferredOrder = [
-      "id", "name", "email", "phone", "address", "status",
+      "id", "humanId", "name", "email", "phone", "address", "status",
       "orders", "balance", "lastTransaction", "lastOnline", "avatar"
     ];
 
     const remaining = Array.from(keysSet).filter(k => !preferredOrder.includes(k));
-    remaining.sort(); 
+    remaining.sort();
 
     const columns = [...preferredOrder.filter(k => keysSet.has(k)), ...remaining];
 
@@ -958,6 +1089,7 @@ export default function CustomerManagement() {
     }
     const headerMap = {
       id: "ID",
+      humanId: "Human ID",
       name: "Name",
       email: "Email",
       phone: "Phone",
@@ -975,6 +1107,7 @@ export default function CustomerManagement() {
       header,
       ...filtered.map(rowObj => columns.map(col => {
         let val = rowObj[col];
+        if (col === "id") val = rowObj.humanId ?? rowObj.id;
         if (val === null || val === undefined) return "";
         if (typeof val === "object") {
           try { return JSON.stringify(val); } catch (e) { return String(val); }
@@ -1090,17 +1223,17 @@ export default function CustomerManagement() {
                   >
                     <div className="cm-card-top">
                       <label className="card-checkbox"
-                       onClick={(e) => { e.stopPropagation(); }}      // keep click from bubbling to card
+                       onClick={(e) => { e.stopPropagation(); }}
                       >
                        <input
                          type="checkbox"
                          checked={isSelected}
-                         onChange={() => toggleSelect(c.id)}           // actually toggle when clicked
+                         onChange={() => toggleSelect(c.id)}
                          aria-label={`Select ${c.name}`}
                         />
                         <span className="checkbox-fake" />
                     </label>
-                      <button className="card-more" onClick={(e)=>{ e.stopPropagation(); /* implement more menu if needed */ }}>⋮</button>
+                      <button className="card-more" onClick={(e)=>{ e.stopPropagation(); }}>⋮</button>
                     </div>
 
                     <div className="cm-avatar-wrap">
