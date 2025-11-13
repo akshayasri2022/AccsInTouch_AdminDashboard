@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Sidebar from "../components/Sidebar";
-import Topbar from "../components/Topbar";
+import Topbar from "../components/Topbar";             // ← ADDED import
+import "../styles/TopbarShared.css";
+
 import StatsCard from "../components/StatsCard";
 import OrdersList from "../components/OrdersList";
 import SummaryChart from "../components/SummaryChart";
 
 /* Modular CSS imports */
 import "../styles/Sidebar.css";
-import "../styles/Topbar.css";
 import "../styles/Dashboard.css";
 import "../styles/StatsCard.css";
 import "../styles/Panels.css";

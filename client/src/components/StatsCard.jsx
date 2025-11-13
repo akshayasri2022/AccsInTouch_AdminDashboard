@@ -1,18 +1,6 @@
 import React from "react";
 import "../styles/StatsCard.css";
 import { FaShoppingCart, FaUsers, FaBox } from "react-icons/fa";
-
-/**
- * Props:
- *  - title: string
- *  - value: string
- *  - subtitle: string
- *  - topMeta: string
- *  - meta: [{ label, value, extra? }]
- *  - variant: 'cart' | 'customers' | 'orders'
- *  - timeFilter: string
- *  - onTimeFilterChange: function
- */
 export default function StatsCard({
   title,
   value,

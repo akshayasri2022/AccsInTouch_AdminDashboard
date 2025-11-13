@@ -51,7 +51,7 @@ const server = http.createServer(app);
     console.log("✅ Database synchronized");
 
     server.listen(PORT, () => {
-      console.log(`🚀 Server running at http://localhost:${PORT}`);
+      console.log(`🚀 Server running at https://acc-in-touch-1.onrender.com/api:${PORT}`);
     });
 
   } catch (err) {
