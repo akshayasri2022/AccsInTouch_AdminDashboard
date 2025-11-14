@@ -265,7 +265,7 @@ if (tabKey === "draft" && prodStatus !== "draft") return false;
               </div>
             )}
 
-            {/* Tabs + right filter */}
+           {/* Tabs + right filter */}
             {!showAddForm && (
               <div className="product-filters">
                 <div className="tabs">
@@ -276,16 +276,28 @@ if (tabKey === "draft" && prodStatus !== "draft") return false;
                     All Product
                   </button>
                   <button
-                    className={`tab ${tab === "Outofstock" ? "active" : ""}`}
-                    onClick={() => setTab("Outofstock")}
+                    className={`tab ${tab === "instock" ? "active" : ""}`}
+                    onClick={() => setTab("instock")}
                   >
-                    Outofstock
+                    In Stock
                   </button>
                   <button
                     className={`tab ${tab === "lowstock" ? "active" : ""}`}
                     onClick={() => setTab("lowstock")}
                   >
-                    Lowstock
+                    Low Stock
+                  </button>
+                  <button
+                    className={`tab ${tab === "outofstock" ? "active" : ""}`}
+                    onClick={() => setTab("outofstock")}
+                  >
+                    Out of Stock
+                  </button>
+                  <button
+                    className={`tab ${tab === "discontinued" ? "active" : ""}`}
+                    onClick={() => setTab("discontinued")}
+                  >
+                    Discontinued
                   </button>
                   <button
                     className={`tab ${tab === "draft" ? "active" : ""}`}
