@@ -1,6 +1,7 @@
 import React from "react";
 import "../styles/StatsCard.css";
 import { FaShoppingCart, FaUsers, FaBox } from "react-icons/fa";
+
 export default function StatsCard({
   title,
   value,
