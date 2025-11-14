@@ -7,7 +7,7 @@ import axios from "axios";
 import "../styles/AddProductForm.css";
 import "../styles/EditProduct.css";
 
-// In-memory cache (replaces localStorage)
+
 let cachedProducts = [];
 
 function loadCachedProducts() {
