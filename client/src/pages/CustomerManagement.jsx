@@ -1,3 +1,4 @@
+// src/pages/CustomerManagement.jsx
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import axios from "axios";
 import Sidebar from "../components/Sidebar";
@@ -9,13 +10,10 @@ import "react-toastify/dist/ReactToastify.css";
 
 const axiosAPI = axios.create({
   baseURL: "https://acc-in-touch-1.onrender.com/api",
-  timeout: 120000, // increased timeout
-  headers: {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  },
+  timeout: 20000, // 20 seconds so it won't hang forever
 });
 
+// POST with limited retries (used only in background / add-customer)
 async function postWithRetry(url, payload, attempts = 3, initialDelay = 1000) {
   let lastErr = null;
   for (let i = 0; i < attempts; i++) {
@@ -127,9 +125,47 @@ function removeDeletedFromStorage(id) {
     const arr = loadDeletedFromStorage().filter(
       (x) => String(x) !== String(id)
     );
-    saveDeletedToStorage(arr);
+    saveDeletedFromStorage(arr);
   } catch (e) {
     console.warn("Failed to remove deleted id from storage", e);
+  }
+}
+
+/* 🔔 Broadcast helper so OrderManagement (and other tabs) can react */
+function broadcastCustomerUpdate(updated) {
+  try {
+    if (!updated) return;
+
+    const id =
+      updated.id ??
+      updated.customerId ??
+      updated._id ??
+      updated.Id ??
+      null;
+    if (!id) return;
+
+    const normalized = { ...updated, id };
+
+    if (normalized.name && !normalized.customerName) {
+      normalized.customerName = normalized.name;
+    }
+    if (normalized.customerName && !normalized.name) {
+      normalized.name = normalized.customerName;
+    }
+
+    // same-tab listeners
+    window.dispatchEvent(
+      new CustomEvent("customer-updated", { detail: normalized })
+    );
+
+    // cross-tab via localStorage
+    const payload = {
+      payload: normalized,
+      ts: Date.now(),
+    };
+    localStorage.setItem("cm_last_customer_update", JSON.stringify(payload));
+  } catch (err) {
+    console.warn("broadcastCustomerUpdate failed", err);
   }
 }
 
@@ -309,7 +345,7 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
   const [form, setForm] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  // NEW: delete-confirm state
+  // delete-confirm state
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -409,7 +445,7 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
     );
   if (!customer) return null;
 
-  // === NEW: actual delete logic, called from the pretty popup ===
+  // actual delete logic, called from the pretty popup
   async function confirmDelete() {
     if (deleting) return;
     setDeleting(true);
@@ -465,8 +501,11 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
     }
   }
 
+  // ✅ UPDATED SAVE HANDLER – quick UI, background sync
   async function handleUpdate(ev) {
     ev.preventDefault();
+
+    // basic validation
     if (!form.name.trim() || !form.email.includes("@")) {
       toast.error("Please provide a valid name and email.");
       return;
@@ -482,104 +521,97 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
       address: form.address,
     };
 
-    // optimistic UI update
+    // 1) Optimistic local update
     setCustomer(payload);
-    onUpdated(payload);
+    try {
+      onUpdated(payload); // updates list + broadcasts to OrderManagement
+    } catch (err) {
+      console.warn("onUpdated handler threw:", err);
+    }
+
     try {
       upsertUnsyncedToStorage({ ...payload, __pendingUpdate: true });
     } catch (e) {
       console.warn("Failed to persist optimistic update", e);
     }
 
-    if (String(payload.id).startsWith("temp-")) {
-      try {
-        upsertUnsyncedToStorage({
-          ...payload,
-          __local: true,
-          __updatedAt: Date.now(),
-        });
-      } catch (e) {
-        console.warn(e);
+    const isTemp = String(payload.id).startsWith("temp-");
+
+    // 2) Close modal immediately – no long 'Saving...' state
+    setSubmitting(false);
+    setEditMode(false);
+    onClose();
+    toast.success("Customer updated.", { autoClose: 1500 });
+
+    // 3) Background sync with server (does NOT block UI)
+    (async () => {
+      if (isTemp) {
+        try {
+          upsertUnsyncedToStorage({
+            ...payload,
+            __local: true,
+            __updatedAt: Date.now(),
+          });
+        } catch (e) {
+          console.warn("Failed to store temp customer update", e);
+        }
+        return;
       }
-      setSubmitting(false);
-      setEditMode(false);
-      onClose();
-      toast.success("Saved locally (will sync when online).");
-      return;
-    }
 
-    const maxAttempts = 3;
-    let attempt = 0;
-    let lastErr = null;
-    let success = false;
-
-    while (attempt < maxAttempts && !success) {
-      attempt++;
       try {
         const res = await axiosAPI.put(
           `/customer/${encodeURIComponent(payload.id)}`,
           payload
         );
+
         const serverRaw = unwrap(res) || res.data;
         if (serverRaw) {
           const serverNormalized = normalizeCustomer(serverRaw) || serverRaw;
-          onUpdated(serverNormalized);
-          try {
-            removeUnsyncedFromStorage(payload.id);
-          } catch (e) {
-            /* ignore */
-          }
-          toast.success("Customer updated on server.");
+          onUpdated(serverNormalized); // reflect server copy
+          removeUnsyncedFromStorage(payload.id);
+          toast.success("Customer updated on server.", { autoClose: 1500 });
         } else if (
           res &&
           typeof res.status === "number" &&
           res.status >= 200 &&
           res.status < 300
         ) {
-          try {
-            removeUnsyncedFromStorage(payload.id);
-          } catch (e) {
-            /* ignore */
-          }
-          toast.success("Customer update acknowledged by server.");
-        } else {
-          lastErr = new Error("Unexpected PUT response");
-          throw lastErr;
+          // 2xx with no body – still treat as success
+          removeUnsyncedFromStorage(payload.id);
         }
-        success = true;
-        break;
       } catch (err) {
-        lastErr = err;
-        if (attempt < maxAttempts) {
-          const wait = 500 * Math.pow(2, attempt - 1);
-          await new Promise((r) => setTimeout(r, wait));
-        } else {
-          console.warn("PUT failed after retries", err);
+        console.warn(
+          "PUT failed, keeping local changes and marking unsynced:",
+          err
+        );
+
+        const localCopy = {
+          ...payload,
+          __syncError: true,
+          __updatedAt: Date.now(),
+        };
+
+        try {
+          upsertUnsyncedToStorage(localCopy);
+        } catch (e) {
+          console.warn("Failed to persist unsynced update", e);
         }
-      }
-    }
 
-    if (!success) {
-      const localCopy = {
-        ...payload,
-        __syncError: true,
-        __updatedAt: Date.now(),
-      };
-      onUpdated(localCopy);
-      try {
-        upsertUnsyncedToStorage(localCopy);
-      } catch (e) {
-        console.warn("Failed to persist unsynced update", e);
-      }
-      toast.info("Saved locally — will retry syncing in background.");
-    }
+        // ensure list has latest local copy
+        try {
+          onUpdated(localCopy);
+        } catch (e) {
+          console.warn("onUpdated after sync error threw:", e);
+        }
 
-    setSubmitting(false);
-    setEditMode(false);
-    onClose();
+        toast.info("Saved locally — will retry syncing in background.", {
+          autoClose: 3000,
+        });
+      }
+    })();
   }
 
-  // ===== ACTIVE / BLOCK STATUS TOGGLE (unchanged, uses backend) =====
+  // ACTIVE / BLOCK STATUS TOGGLE
   async function handleToggleStatus() {
     const newStatus = customer.status === "Active" ? "Blocked" : "Active";
 
@@ -920,7 +952,7 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
         </div>
       </div>
 
-      {/* ===== NICE CONFIRM POPUP ===== */}
+      {/* Confirm delete popup */}
       {showConfirmDelete && (
         <div
           className="cm-confirm-backdrop"
@@ -962,7 +994,6 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
     </div>
   );
 }
-
 
 /* ===================== Add Customer Modal ===================== */
 
@@ -1131,7 +1162,9 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Customer Email"
             />
-            {errors.email && <div className="field-error">{errors.email}</div>}
+            {errors.email && (
+              <div className="field-error">{errors.email}</div>
+            )}
           </div>
 
           <div className="phone-row">
@@ -1174,9 +1207,7 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
               gap: 8,
             }}
           >
-            <span
-              style={{ fontSize: 14, color: "rgba(94, 96, 99, 1)" }}
-            >
+            <span style={{ fontSize: 14, color: "rgba(94, 96, 99, 1)" }}>
               Add Address
             </span>
             <ToggleSwitch
@@ -1301,8 +1332,6 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
   );
 }
 
-/* ===================== NEW: Toolbar component ===================== */
-
 /* ===================== Toolbar component ===================== */
 
 function CustomerToolbar({
@@ -1344,10 +1373,7 @@ function CustomerToolbar({
           </button>
 
           <div className="cm-add-column">
-            <button
-              className="cm-btn cm-add-btn"
-              onClick={onOpenAdd}
-            >
+            <button className="cm-btn cm-add-btn" onClick={onOpenAdd}>
               ＋ Add Customer
             </button>
           </div>
@@ -1440,8 +1466,7 @@ function CustomerToolbar({
   );
 }
 
-
-/* ===================== NEW: Grid + pagination component ===================== */
+/* ===================== Grid + pagination component ===================== */
 
 function CustomerGridSection({
   paged,
@@ -1647,6 +1672,8 @@ export default function CustomerManagement() {
 
   useEffect(() => {
     fetchCustomers();
+
+    // background sync of any queued unsynced customers
     (async function trySyncStored() {
       const unsynced = loadUnsyncedFromStorage();
       if (!unsynced || !unsynced.length) return;
@@ -1830,10 +1857,40 @@ export default function CustomerManagement() {
     }
   }
 
+  // 🔁 central handler for updates coming from modal
   function handleUpdatedCustomer(updated) {
+    if (!updated) return;
+
+    const id =
+      updated.id ??
+      updated.customerId ??
+      updated._id ??
+      updated.Id ??
+      null;
+    if (!id) return;
+
+    const normalized = {
+      ...updated,
+      id,
+    };
+
+    if (normalized.name && !normalized.customerName) {
+      normalized.customerName = normalized.name;
+    }
+    if (normalized.customerName && !normalized.name) {
+      normalized.name = normalized.customerName;
+    }
+
+    // 1) update CustomerManagement list
     setCustomers((prev) =>
-      prev.map((c) => (String(c.id) === String(updated.id) ? updated : c))
+      prev.map((c) => {
+        const cid = String(c.id ?? c.customerId ?? c._id ?? "");
+        return cid === String(id) ? { ...c, ...normalized } : c;
+      })
     );
+
+    // 2) notify OrderManagement (and other pages)
+    broadcastCustomerUpdate(normalized);
   }
 
   function handleDeletedCustomer(id) {
@@ -1940,22 +1997,23 @@ export default function CustomerManagement() {
         <CustomerTopbar />
         <div className="dashboard-content cm-page-root">
           <div className="cm-container">
-            {/* TOP SECTION as a child component */}
-           <CustomerToolbar
-  query={query}
-  setQuery={setQuery}
-  tab={tab}
-  setTab={setTab}
-  ordersFilter={ordersFilter}
-  setOrdersFilter={setOrdersFilter}
-  ordersMenuOpen={ordersMenuOpen}
-  setOrdersMenuOpen={setOrdersMenuOpen}
-  ordersMenuRef={ordersMenuRef}
-  setPage={setPage}
-  handleExportVisible={handleExportVisible}
-  onOpenAdd={() => setAddOpen(true)}
-/>
-            {/* GRID + PAGINATION as a child component */}
+            {/* TOP SECTION */}
+            <CustomerToolbar
+              query={query}
+              setQuery={setQuery}
+              tab={tab}
+              setTab={setTab}
+              ordersFilter={ordersFilter}
+              setOrdersFilter={setOrdersFilter}
+              ordersMenuOpen={ordersMenuOpen}
+              setOrdersMenuOpen={setOrdersMenuOpen}
+              ordersMenuRef={ordersMenuRef}
+              setPage={setPage}
+              handleExportVisible={handleExportVisible}
+              onOpenAdd={() => setAddOpen(true)}
+            />
+
+            {/* GRID + PAGINATION */}
             <CustomerGridSection
               paged={paged}
               filteredLength={filtered.length}
