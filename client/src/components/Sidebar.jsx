@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { FaChartPie, FaBoxOpen, FaClipboardList, FaUsers, FaSignOutAlt } from "react-icons/fa";
 import axios from "axios";
 import "../styles/Sidebar.css";
+import LOGO from "../assets/LOGO.png";
 
 export default function Sidebar() {
   const navigate = useNavigate();
@@ -65,8 +66,11 @@ export default function Sidebar() {
       <aside className="sidebar">
         <div className="sidebar-top">
           <div className="logo">
-            <div className="logo-circle">O</div>
-            <span className="logo-text">Logo</span>
+            <div className="logo-circle">
+                            <img src={LOGO} alt="Accs In-Touch Logo" className="logo-img" />
+
+            </div>
+            <span className="logo-text">Accs In-Touch</span>
           </div>
         </div>
 
