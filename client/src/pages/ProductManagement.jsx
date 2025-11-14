@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { FaSearch, FaDownload, FaFilter, FaCalendarAlt } from "react-icons/fa";
 import axios from "axios";
 import Sidebar from "../components/Sidebar";
-import ProductTopbar from "../components/ProductTopbar"; // <-- product-specific topbar
+import ProductTopbar from "../components/ProductTopbar"; 
 import ProductTable from "../components/ProductTable";
 import AddProductForm from "./AddProductForm";
 import "../styles/Product.css";
@@ -22,8 +22,6 @@ export default function ProductManagement() {
   const [products, setProducts] = useState([]); // <-- Store fetched products
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  // Filter popup states
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [filterStartDate, setFilterStartDate] = useState("");
   const [filterEndDate, setFilterEndDate] = useState("");
@@ -231,16 +229,17 @@ export default function ProductManagement() {
     }
 
     // Dropdown date filter (Last 7 or 30 days)
-    if (filterStatus === "7days") {
-      if (!createdDate) return false;
-      const days = (now - createdDate) / (1000 * 60 * 60 * 24);
-      if (days > 7) return false;
-    }
-    if (filterStatus === "30days") {
-      if (!createdDate) return false;
-      const days = (now - createdDate) / (1000 * 60 * 60 * 24);
-      if (days > 30) return false;
-    }
+   if (filterStatus === "7days") {
+  if (!createdDate) return false;
+  const days = (now - createdDate) / (1000 * 60 * 60 * 24);
+  if (days > 7) return false;
+}
+if (filterStatus === "30days") {
+  if (!createdDate) return false;
+  const days = (now - createdDate) / (1000 * 60 * 60 * 24);
+  if (days > 30) return false;
+}
+
 
     // Custom date range
     if (filterStartDate) {
@@ -479,19 +478,6 @@ export default function ProductManagement() {
                 <option value="Claws">Claws</option>
                 <option value="Earrings">Earrings</option>
                 <option value="Scrunchies">Scrunchies</option>
-              </select>
-            </div>
-
-            <div style={{ marginBottom: 12 }}>
-              <label>Stock</label>
-              <select
-                value={stockFilter}
-                onChange={(e) => setStockFilter(e.target.value)}
-                style={{ width: "100%", padding: "8px", marginTop: 6 }}
-              >
-                <option value="all">All</option>
-                <option value="low">Low stock (&lt; 10)</option>
-                <option value="instock">In stock (≥ 10)</option>
               </select>
             </div>
 
