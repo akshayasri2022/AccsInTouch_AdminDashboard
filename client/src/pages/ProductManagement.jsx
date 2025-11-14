@@ -33,6 +33,8 @@ export default function ProductManagement() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [stockFilter, setStockFilter] = useState("all"); // 'all' | 'low' | 'instock'
 
+  const LOW_STOCK_THRESHOLD = 10;
+
   useEffect(() => {
     setShowAddForm(location.pathname === "/ProductManagement/add");
   }, [location.pathname]);
@@ -43,7 +45,9 @@ export default function ProductManagement() {
       try {
         setLoading(true);
         setError("");
-        const res = await axios.get("https://acc-in-touch-1.onrender.com/api/Product");
+        const res = await axios.get(
+          "https://acc-in-touch-1.onrender.com/api/Product"
+        );
         console.log(res, "responseProducts");
         setProducts(res.data || []);
       } catch (err) {
@@ -56,37 +60,59 @@ export default function ProductManagement() {
     fetchProducts();
   }, [refreshKey]);
 
+  // helper to normalize status => lowercase, no spaces / hyphen / underscore
+  const normalizeStatus = (value) => {
+    if (value === undefined || value === null) return "";
+    return value
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_-]+/g, ""); // remove space, underscore, hyphen
+  };
+
   // derive categories from products for filter dropdown
   const categoryOptions = useMemo(() => {
     const setCat = new Set();
     products.forEach((p) => {
-      if (p.category) setCat.add(p.category);
+      const cat = p.productCategory || p.category;
+      if (cat) setCat.add(cat);
     });
     return Array.from(setCat);
   }, [products]);
 
   const handleExport = () => {
-    const headers = ['productSKU', 'productName', 'productQuantity', 'productStatus', 'basicPricing'];
-    
-    const csvData = filteredProducts.map(order => [
-      order.productSKU || '',
-      order.productName || '',
-      order.productQuantity || '',
-      order.productStatus || '',
-      order.basicPricing || '',
+    const headers = [
+      "productSKU",
+      "productName",
+      "productQuantity",
+      "productStatus",
+      "basicPricing",
+    ];
+
+    const csvData = filteredProducts.map((order) => [
+      order.productSKU || "",
+      order.productName || "",
+      order.productQuantity || "",
+      order.productStatus || "",
+      order.basicPricing || "",
     ]);
 
     const csvContent = [
-      headers.join(','),
-      ...csvData.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
+      headers.join(","),
+      ...csvData.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `products_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `products_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -98,7 +124,6 @@ export default function ProductManagement() {
 
   function handleProductAdded(newProduct) {
     setRefreshKey((prev) => prev + 1);
-    // keep navigation, but no background-only assumptions
     setTimeout(() => {
       navigate("/ProductManagement");
     }, 1500);
@@ -145,26 +170,65 @@ export default function ProductManagement() {
     // Defensive normalization (ensure strings)
     const prodName = (product.productName || "").toString();
     const prodSKU = (product.productSKU || "").toString();
-    const prodStatusRaw = (product.productStatus || "").toString();
-    const prodCategoryRaw = (product.category || "").toString();
+    const prodStatusRaw = (
+      product.productStatus ||
+      product.status ||
+      ""
+    ).toString();
+    const prodCategoryRaw = (
+      product.productCategory ||
+      product.category ||
+      ""
+    ).toString();
 
-    const prodStatus = prodStatusRaw.trim().toLowerCase();
+    const prodStatusNorm = normalizeStatus(prodStatusRaw); // key
     const prodCategory = prodCategoryRaw.trim().toLowerCase();
 
-    // Search filters (case-insensitive)
-    const searchTerm = (globalSearch || rightSearch).toLowerCase();
+    // Search filters (merge left+right search, case-insensitive)
+    const searchTermCombined = `${globalSearch || ""} ${rightSearch || ""}`
+      .trim()
+      .toLowerCase();
+
+    const searchTokens = searchTermCombined
+      ? searchTermCombined.split(/\s+/).filter(Boolean)
+      : [];
+
+    const nameLower = prodName.toLowerCase();
+    const skuLower = prodSKU.toLowerCase();
+
     const matchesSearch =
-      !searchTerm ||
-      (prodName && prodName.toLowerCase().includes(searchTerm)) ||
-      (prodSKU && prodSKU.toLowerCase().includes(searchTerm));
+      searchTokens.length === 0 ||
+      searchTokens.every(
+        (t) => nameLower.includes(t) || skuLower.includes(t)
+      );
 
     if (!matchesSearch) return false;
 
-    // Tab-based filters (case-insensitive comparison)
-const tabKey = (tab || "").toString().trim().toLowerCase();
-if (tabKey === "outofstock" && prodStatus !== "outofstock") return false;
-if (tabKey === "lowstock" && prodStatus !== "lowstock") return false;
-if (tabKey === "draft" && prodStatus !== "draft") return false;
+    // Stock quantity (for stock filters & outofstock/lowstock tabs, if you want)
+    const qty = Number(
+      product.productQuantity ??
+        product.stock ??
+        product.qty ??
+        product.product_qty ??
+        0
+    );
+
+    // Tab-based filters (case-insensitive, format-insensitive)
+    const tabKey = (tab || "").toString().trim().toLowerCase();
+
+    if (tabKey === "outofstock") {
+      // match status "OUTOFSTOCK", "Out of stock", "out-of-stock", etc.
+      if (prodStatusNorm !== "outofstock") return false;
+    }
+
+    if (tabKey === "lowstock") {
+      // match "lowstock", "Low Stock", "LOW-STOCK", etc.
+      if (prodStatusNorm !== "lowstock") return false;
+    }
+
+    if (tabKey === "draft") {
+      if (prodStatusNorm !== "draft") return false;
+    }
 
     // Dropdown date filter (Last 7 or 30 days)
     if (filterStatus === "7days") {
@@ -190,8 +254,8 @@ if (tabKey === "draft" && prodStatus !== "draft") return false;
 
     // Status filter (if user selected an explicit status string other than 7days/30days)
     if (filterStatus && !["7days", "30days"].includes(filterStatus)) {
-      const fs = filterStatus.toString().trim().toLowerCase();
-      if (prodStatus !== fs) return false;
+      const fsNorm = normalizeStatus(filterStatus);
+      if (prodStatusNorm !== fsNorm) return false;
     }
 
     // Category filter (case-insensitive)
@@ -200,14 +264,26 @@ if (tabKey === "draft" && prodStatus !== "draft") return false;
       if (prodCategory !== selCat) return false;
     }
 
-    // Stock filter
-    const qty = Number(product.productQuantity ?? 0);
-    if (stockFilter === "low" && qty >= 10) return false;
-    if (stockFilter === "instock" && qty < 10) return false;
+    // Stock filter from modal (based on quantity)
+    if (stockFilter === "low") {
+      if (!(Number.isFinite(qty) && qty > 0 && qty < LOW_STOCK_THRESHOLD)) {
+        return false;
+      }
+    }
+    if (stockFilter === "instock") {
+      if (!(Number.isFinite(qty) && qty >= LOW_STOCK_THRESHOLD)) {
+        return false;
+      }
+    }
 
     // Price filter
-    if (minPrice !== "" && Number(product.basicPricing) < parseFloat(minPrice)) return false;
-    if (maxPrice !== "" && Number(product.basicPricing) > parseFloat(maxPrice)) return false;
+    const basicPrice = Number(product.basicPricing);
+    if (minPrice !== "" && !Number.isNaN(basicPrice)) {
+      if (basicPrice < parseFloat(minPrice)) return false;
+    }
+    if (maxPrice !== "" && !Number.isNaN(basicPrice)) {
+      if (basicPrice > parseFloat(maxPrice)) return false;
+    }
 
     return true;
   });
@@ -220,8 +296,8 @@ if (tabKey === "draft" && prodStatus !== "draft") return false;
     maxPrice ? 1 : 0,
     filterStartDate ? 1 : 0,
     filterEndDate ? 1 : 0,
-    (filterStatus && !["7days","30days"].includes(filterStatus)) ? 1 : 0,
-  ].reduce((a,b) => a + b, 0);
+    filterStatus && !["7days", "30days"].includes(filterStatus) ? 1 : 0,
+  ].reduce((a, b) => a + b, 0);
 
   return (
     <div className="dashboard-root">
@@ -237,7 +313,6 @@ if (tabKey === "draft" && prodStatus !== "draft") return false;
             {!showAddForm && (
               <div className="product-header-wrap">
                 <div className="product-header-right ">
-
                   {/* Search bar with icon */}
                   <div className="search-wrapper">
                     <FaSearch className="search-icon" />
@@ -250,10 +325,7 @@ if (tabKey === "draft" && prodStatus !== "draft") return false;
                   </div>
 
                   {/* Export button with icon */}
-                  <button
-                    className="btn-outline"
-                    onClick={handleExport}
-                  >
+                  <button className="btn-outline" onClick={handleExport}>
                     <FaDownload style={{ marginRight: "6px" }} /> Export
                   </button>
 
@@ -308,7 +380,6 @@ if (tabKey === "draft" && prodStatus !== "draft") return false;
                 </div>
 
                 <div className="right-filters">
-
                   {/* Right-side search with icon */}
                   <div className="filter-search-wrapper">
                     <FaSearch className="filter-search-icon" />
@@ -323,7 +394,17 @@ if (tabKey === "draft" && prodStatus !== "draft") return false;
                   {/* Select date with icon */}
                   <div className="select-wrapper">
                     <FaCalendarAlt className="select-icon" />
-                    <select className="filter-select" onChange={handleDateSelectChange} value={filterStatus === "7days" ? "7" : filterStatus === "30days" ? "30" : ""}>
+                    <select
+                      className="filter-select"
+                      onChange={handleDateSelectChange}
+                      value={
+                        filterStatus === "7days"
+                          ? "7"
+                          : filterStatus === "30days"
+                          ? "30"
+                          : ""
+                      }
+                    >
                       <option value="">Select Date</option>
                       <option value="7">Last 7 days</option>
                       <option value="30">Last 30 days</option>
@@ -336,7 +417,11 @@ if (tabKey === "draft" && prodStatus !== "draft") return false;
                     onClick={handleOpenFilters}
                   >
                     <FaFilter style={{ marginRight: "6px" }} /> Filters
-                    <span className={`filter-badge ${activeFilterCount === 0 ? "zero" : ""}`}>
+                    <span
+                      className={`filter-badge ${
+                        activeFilterCount === 0 ? "zero" : ""
+                      }`}
+                    >
                       {activeFilterCount}
                     </span>
                   </button>
@@ -348,11 +433,12 @@ if (tabKey === "draft" && prodStatus !== "draft") return false;
             <div className="product-main-area">
               {showAddForm ? (
                 <div className="add-product-inline">
-                  <AddProductForm onCancel={handleCloseAdd} 
-                  onProductAdded={handleProductAdded}
-                    />
+                  <AddProductForm
+                    onCancel={handleCloseAdd}
+                    onProductAdded={handleProductAdded}
+                  />
                 </div>
-             ) : (
+              ) : (
                 <div className="product-table-container">
                   {loading ? (
                     <p className="loading-text">Loading products...</p>
@@ -361,7 +447,7 @@ if (tabKey === "draft" && prodStatus !== "draft") return false;
                   ) : (
                     <ProductTable
                       key={refreshKey}
-                      products={filteredProducts} // <-- Pass fetched products
+                      products={filteredProducts}
                       search={globalSearch}
                       tab={tab}
                       rightSearch={rightSearch}
@@ -383,17 +469,17 @@ if (tabKey === "draft" && prodStatus !== "draft") return false;
             <div style={{ marginBottom: 12 }}>
               <label>Category</label>
               <select
-  value={selectedCategory}
-  onChange={(e) => setSelectedCategory(e.target.value)}
-  style={{ width: "100%", padding: "8px", marginTop: 6 }}
->
-  <option value="">All categories</option>
-  <option value="Hair Bows">Hair Bows</option>
-  <option value="Claws">Claws</option>
-  <option value="Earrings">Earrings</option>
-  <option value="Scrunchies">Scrunchies</option>
-</select>
-
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                style={{ width: "100%", padding: "8px", marginTop: 6 }}
+              >
+                <option value="">All categories</option>
+                {/* Static options; you can switch to categoryOptions.map(...) if you want dynamic */}
+                <option value="Hair Bows">Hair Bows</option>
+                <option value="Claws">Claws</option>
+                <option value="Earrings">Earrings</option>
+                <option value="Scrunchies">Scrunchies</option>
+              </select>
             </div>
 
             <div style={{ marginBottom: 12 }}>
@@ -453,9 +539,21 @@ if (tabKey === "draft" && prodStatus !== "draft") return false;
               </div>
             </div>
 
-            <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
-              <button className="btn-outline" onClick={handleClearFilters}>Clear</button>
-              <button className="btn-primary" onClick={handleApplyFilters}>Apply</button>
+            <div
+              className="modal-actions"
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 8,
+                marginTop: 10,
+              }}
+            >
+              <button className="btn-outline" onClick={handleClearFilters}>
+                Clear
+              </button>
+              <button className="btn-primary" onClick={handleApplyFilters}>
+                Apply
+              </button>
             </div>
 
             <button

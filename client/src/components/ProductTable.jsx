@@ -1,4 +1,4 @@
-// src/components/ProductTable.jsx
+
 import React, { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -60,7 +60,9 @@ export default function ProductTable({
   }, [productsProp]);
 
   const combinedTokens = useMemo(() => {
-    const combined = `${search || ""} ${rightSearch || ""}`.trim().toLowerCase();
+    const combined = `${search || ""} ${rightSearch || ""}`
+      .trim()
+      .toLowerCase();
     return combined ? combined.split(/\s+/).filter(Boolean) : [];
   }, [search, rightSearch]);
 
@@ -81,6 +83,7 @@ export default function ProductTable({
     return 0;
   };
 
+  // For display + basic semantic status
   const normalizeStatus = (raw) => {
     if (raw === undefined || raw === null) return "";
     if (typeof raw === "boolean") return raw ? "In Stock" : "Draft";
@@ -111,17 +114,30 @@ export default function ProductTable({
     return raw.toString().split(/(?=[A-Z])/).join(' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
+  // Extra status normalizer for tab logic (removes spaces, -, _ and ignores case)
+  const normalizeStatusForTabs = (raw) => {
+    if (raw === undefined || raw === null) return "";
+    return String(raw)
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_-]+/g, ""); // "Low Stock", "LOW-STOCK" -> "lowstock"
+  };
+
   const filtered = useMemo(() => {
     let data = (products || []).slice();
 
-    const getName = (d) => String(d.productName ?? d.name ?? "").toLowerCase();
+    const getName = (d) =>
+      String(d.productName ?? d.name ?? "").toLowerCase();
     const getSKU = (d) => String(d.productSKU ?? d.sku ?? "").toLowerCase();
 
     const wantTab = String(tab || "all").trim().toLowerCase();
 
     data = data.filter((d) => {
       const quantity = getQuantityValue(d);
-      const statusNormalized = normalizeStatus(
+      const statusDisplay = normalizeStatus(
+        d.productStatus ?? d.status ?? d.state ?? d
+      );
+      const statusTab = normalizeStatusForTabs(
         d.productStatus ?? d.status ?? d.state ?? d
       );
 
@@ -140,6 +156,7 @@ export default function ProductTable({
       } else if (wantTab === "draft") {
         if (statusNormalized !== "Draft") return false;
       }
+      // if tab is "all" or anything else, don't filter by tab
       return true;
     });
 
@@ -166,7 +183,9 @@ export default function ProductTable({
   const paged = filtered.slice((page - 1) * perPage, page * perPage);
 
   const toggle = (id) =>
-    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+    setSelected((s) =>
+      s.includes(id) ? s.filter((x) => x !== id) : [...s, id]
+    );
 
   const toggleAll = (e) =>
     e.target.checked
@@ -231,14 +250,19 @@ export default function ProductTable({
   };
 
   // helper to format numbers or show '—'
-  const displayOrDash = (v) => (v === undefined || v === null || v === "" ? "—" : v);
+  const displayOrDash = (v) =>
+    v === undefined || v === null || v === "" ? "—" : v;
 
   return (
     <div className="product-table-panel panel">
       {loading ? (
-        <p style={{ padding: 20, textAlign: "center" }}>Loading products...</p>
+        <p style={{ padding: 20, textAlign: "center" }}>
+          Loading products...
+        </p>
       ) : error ? (
-        <p style={{ padding: 20, textAlign: "center", color: "red" }}>{error}</p>
+        <p style={{ padding: 20, textAlign: "center", color: "red" }}>
+          {error}
+        </p>
       ) : (
         <>
           <table
@@ -308,17 +332,26 @@ export default function ProductTable({
             <tbody>
               {paged.map((p) => {
                 const pid =
-                  p.id ?? p._id ?? p.productSKU ?? `${p.productName}-${Math.random()}`;
+                  p.id ??
+                  p._id ??
+                  p.productSKU ??
+                  `${p.productName}-${Math.random()}`;
                 const quantity = getQuantityValue(p);
                 const statusNormalized = normalizeStatus(
                   p.productStatus ?? p.status ?? p.state ?? p
                 );
                 const thumb =
-                  Array.isArray(p.image_url) && p.image_url.length ? p.image_url[0] : null;
+                  Array.isArray(p.image_url) && p.image_url.length
+                    ? p.image_url[0]
+                    : null;
 
                 return (
                   <tr key={pid} className="product-row" role="row">
-                    <td className="col-check" role="cell" style={{ textAlign: "center" }}>
+                    <td
+                      className="col-check"
+                      role="cell"
+                      style={{ textAlign: "center" }}
+                    >
                       <input
                         type="checkbox"
                         checked={selected.includes(pid)}
@@ -330,14 +363,18 @@ export default function ProductTable({
                     <td className="col-product prod-cell" role="cell">
                       <div
                         className="prod-thumb"
-                        style={thumb ? { backgroundImage: `url(${thumb})` } : undefined}
+                        style={
+                          thumb ? { backgroundImage: `url(${thumb})` } : undefined
+                        }
                         aria-hidden
                       />
                       <div className="prod-meta">
                         <div className="prod-title" title={p.productName}>
                           {p.productName}
                         </div>
-                        <div className="prod-sku">{p.productSKU ? `SKU: ${p.productSKU}` : "—"}</div>
+                        <div className="prod-sku">
+                          {p.productSKU ? `SKU: ${p.productSKU}` : "—"}
+                        </div>
                       </div>
                     </td>
 
@@ -359,7 +396,9 @@ export default function ProductTable({
                       </span>
                     </td>
                     <td className="col-added mono" role="cell">
-                      {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "—"}
+                      {p.createdAt
+                        ? new Date(p.createdAt).toLocaleDateString()
+                        : "—"}
                     </td>
 
                     <td
@@ -400,7 +439,14 @@ export default function ProductTable({
 
               {paged.length === 0 && (
                 <tr>
-                  <td colSpan="9" style={{ padding: 24, textAlign: "center", color: "#6b7280" }}>
+                  <td
+                    colSpan="9"
+                    style={{
+                      padding: 24,
+                      textAlign: "center",
+                      color: "#6b7280",
+                    }}
+                  >
                     No products found
                   </td>
                 </tr>
@@ -471,13 +517,29 @@ export default function ProductTable({
             className="productmodal-content"
             style={{ maxWidth: 900, width: "94%", borderRadius: 8 }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-              <h3 style={{ margin: 0 }}>{viewProduct.productName || "Product details"}</h3>
-              {/* header area intentionally left without a Close button */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <h3 style={{ margin: 0 }}>
+                {viewProduct.productName || "Product details"}
+              </h3>
               <div aria-hidden />
             </div>
 
-            <div style={{ display: "flex", gap: 20, marginTop: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 20,
+                marginTop: 16,
+                alignItems: "flex-start",
+                flexWrap: "wrap",
+              }}
+            >
               <div style={{ minWidth: 180, maxWidth: 360 }}>
                 <div
                   style={{
@@ -493,43 +555,72 @@ export default function ProductTable({
                 >
                   <img
                     src={
-                      Array.isArray(viewProduct.image_url) && viewProduct.image_url.length
+                      Array.isArray(viewProduct.image_url) &&
+                      viewProduct.image_url.length
                         ? viewProduct.image_url[0]
                         : "https://cdn-icons-png.flaticon.com/512/7486/7486744.png"
                     }
                     alt={viewProduct.productName || "product image"}
-                    style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      borderRadius: 8,
+                    }}
                     onError={(e) => {
                       e.target.onerror = null;
-                      e.target.src = "https://cdn-icons-png.flaticon.com/512/7486/7486744.png";
+                      e.target.src =
+                        "https://cdn-icons-png.flaticon.com/512/7486/7486744.png";
                     }}
                   />
                 </div>
 
-                {Array.isArray(viewProduct.image_url) && viewProduct.image_url.length > 1 && (
-                  <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {viewProduct.image_url.slice(0, 6).map((u, i) => (
-                      <img
-                        key={i}
-                        src={u}
-                        alt={`thumb-${i}`}
-                        style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6, border: "1px solid rgba(0,0,0,0.04)" }}
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = "https://cdn-icons-png.flaticon.com/512/7486/7486744.png";
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
+                {Array.isArray(viewProduct.image_url) &&
+                  viewProduct.image_url.length > 1 && (
+                    <div
+                      style={{
+                        marginTop: 10,
+                        display: "flex",
+                        gap: 8,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      {viewProduct.image_url.slice(0, 6).map((u, i) => (
+                        <img
+                          key={i}
+                          src={u}
+                          alt={`thumb-${i}`}
+                          style={{
+                            width: 56,
+                            height: 56,
+                            objectFit: "cover",
+                            borderRadius: 6,
+                            border: "1px solid rgba(0,0,0,0.04)",
+                          }}
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src =
+                              "https://cdn-icons-png.flaticon.com/512/7486/7486744.png";
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
               </div>
 
               <div style={{ flex: 1, minWidth: 260 }}>
                 <div style={{ marginBottom: 12, color: "#6b7280" }}>
-                  {viewProduct.productDescription || "No description provided."}
+                  {viewProduct.productDescription ||
+                    "No description provided."}
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 12,
+                  }}
+                >
                   <div>
                     <div style={{ fontSize: 12, color: "#6b7280" }}>SKU</div>
                     <div style={{ fontWeight: 700 }}>{displayOrDash(viewProduct.productSKU)}</div>
@@ -568,20 +659,105 @@ export default function ProductTable({
                   <div>
                     <div style={{ fontSize: 12, color: "#6b7280" }}>Dimensions (H×L×W cm)</div>
                     <div style={{ fontWeight: 700 }}>
-                      {`${displayOrDash(viewProduct.productHeight)} × ${displayOrDash(viewProduct.productLength)} × ${displayOrDash(viewProduct.productWidth)}`}
+                      {displayOrDash(viewProduct.productSKU)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>
+                      Barcode
+                    </div>
+                    <div style={{ fontWeight: 700 }}>
+                      {displayOrDash(viewProduct.productBarcode)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>
+                      Category
+                    </div>
+                    <div style={{ fontWeight: 700 }}>
+                      {displayOrDash(viewProduct.productCategory)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>
+                      Stock
+                    </div>
+                    <div style={{ fontWeight: 700 }}>
+                      {displayOrDash(
+                        viewProduct.productQuantity ??
+                          viewProduct.stock ??
+                          "—"
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>
+                      Price
+                    </div>
+                    <div style={{ fontWeight: 700 }}>
+                      {viewProduct.basicPricing !== undefined
+                        ? `$${viewProduct.basicPricing}`
+                        : "—"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>
+                      Status
+                    </div>
+                    <div style={{ fontWeight: 700 }}>
+                      {normalizeStatus(
+                        viewProduct.productStatus ?? viewProduct.status ?? "—"
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>
+                      Weight
+                    </div>
+                    <div style={{ fontWeight: 700 }}>
+                      {displayOrDash(viewProduct.productWeight)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>
+                      Dimensions (H×L×W cm)
+                    </div>
+                    <div style={{ fontWeight: 700 }}>
+                      {`${displayOrDash(
+                        viewProduct.productHeight
+                      )} × ${displayOrDash(
+                        viewProduct.productLength
+                      )} × ${displayOrDash(viewProduct.productWidth)}`}
                     </div>
                   </div>
 
                   <div>
                     <div style={{ fontSize: 12, color: "#6b7280" }}>Tags</div>
                     <div style={{ fontWeight: 700 }}>
-                      {Array.isArray(viewProduct.productTags) ? viewProduct.productTags.join(", ") : (viewProduct.productTags || "—")}
+                      {Array.isArray(viewProduct.productTags)
+                        ? viewProduct.productTags.join(", ")
+                        : viewProduct.productTags || "—"}
                     </div>
                   </div>
 
                   <div>
-                    <div style={{ fontSize: 12, color: "#6b7280" }}>Created</div>
-                    <div style={{ fontWeight: 700 }}>{viewProduct.createdAt ? new Date(viewProduct.createdAt).toLocaleString() : "—"}</div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>
+                      Created
+                    </div>
+                    <div style={{ fontWeight: 700 }}>
+                      {viewProduct.createdAt
+                        ? new Date(
+                            viewProduct.createdAt
+                          ).toLocaleString()
+                        : "—"}
+                    </div>
                   </div>
                 </div>
               </div>
