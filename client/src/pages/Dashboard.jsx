@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Sidebar from "../components/Sidebar";
-import Topbar from "../components/Topbar";             // ← ADDED import
+import Topbar from "../components/Topbar";
 import "../styles/TopbarShared.css";
 
 import StatsCard from "../components/StatsCard";
@@ -39,92 +39,115 @@ export default function Dashboard() {
     };
   };
 
-  // FIXED: Improved date filtering with proper date handling
+  // Date filtering
   const filterByTimePeriod = (data, timeFilter, dateField = 'orderDate') => {
     if (timeFilter === 'all' || !data || data.length === 0) return data;
 
     const now = new Date();
-    
-    // For week: last 7 days including today
     const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // 6 days ago + today = 7 days
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
     sevenDaysAgo.setHours(0, 0, 0, 0);
 
-    // For month: last 30 days including today
     const thirtyDaysAgo = new Date(now);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29); // 29 days ago + today = 30 days
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
     thirtyDaysAgo.setHours(0, 0, 0, 0);
 
     return data.filter(item => {
-      // Try multiple date field possibilities
       let dateValue = item[dateField];
       
-      // Fallback chain for different date field names
       if (!dateValue && dateField === 'orderDate') {
         dateValue = item.createdAt || item.date || item.created_at;
       } else if (!dateValue && dateField === 'createdAt') {
         dateValue = item.orderDate || item.date || item.created_at;
       }
       
-      if (!dateValue) {
-        console.warn('No date found for item:', item);
-        return false;
-      }
+      if (!dateValue) return false;
       
-      // Parse date - handle both ISO strings and date objects
       let itemDate;
       try {
         itemDate = new Date(dateValue);
-        
-        // Validate parsed date
-        if (isNaN(itemDate.getTime())) {
-          console.warn('Invalid date:', dateValue);
-          return false;
-        }
+        if (isNaN(itemDate.getTime())) return false;
       } catch (e) {
-        console.warn('Error parsing date:', dateValue, e);
         return false;
       }
       
-      // Set to start of day for accurate comparison
       const itemDateStart = new Date(itemDate);
       itemDateStart.setHours(0, 0, 0, 0);
       
       const nowEnd = new Date(now);
       nowEnd.setHours(23, 59, 59, 999);
       
-      console.log(`Filtering ${dateField}:`, {
-        original: dateValue,
-        parsed: itemDateStart.toLocaleDateString(),
-        filter: timeFilter,
-        sevenDaysAgo: sevenDaysAgo.toLocaleDateString(),
-        thirtyDaysAgo: thirtyDaysAgo.toLocaleDateString(),
-        today: nowEnd.toLocaleDateString()
-      });
-      
       if (timeFilter === 'week') {
-        const isInRange = itemDateStart >= sevenDaysAgo && itemDateStart <= nowEnd;
-        console.log(`Week filter: ${isInRange}`);
-        return isInRange;
+        return itemDateStart >= sevenDaysAgo && itemDateStart <= nowEnd;
       } else if (timeFilter === 'month') {
-        const isInRange = itemDateStart >= thirtyDaysAgo && itemDateStart <= nowEnd;
-        console.log(`Month filter: ${isInRange}`);
-        return isInRange;
+        return itemDateStart >= thirtyDaysAgo && itemDateStart <= nowEnd;
       }
       
       return true;
     });
   };
 
-  // Fetch customers from backend
+  // Fetch customers from backend and merge with localStorage status
   const fetchCustomers = async () => {
     try {
       const response = await axios.get(`${API_URL}/Customer`, getAuthHeaders());
-      const customerData = Array.isArray(response.data) ? response.data : [];
-      console.log('Customers fetched:', customerData.length);
+      let customerData = Array.isArray(response.data) ? response.data : [];
+      
+      console.log('📊 CUSTOMERS FETCHED:', customerData.length);
+      
+      // Load unsynced customer data from localStorage (contains status updates)
+      const LS_KEY = "cm_unsynced_customers_v1";
+      let unsyncedCustomers = [];
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (raw) {
+          unsyncedCustomers = JSON.parse(raw);
+          console.log('💾 Loaded localStorage customer data:', unsyncedCustomers.length);
+        }
+      } catch (e) {
+        console.warn("Failed to read unsynced from localStorage", e);
+      }
+      
+      // Merge status from localStorage into fetched data
+      customerData = customerData.map(customer => {
+        // Find matching customer in localStorage by ID
+        const localCustomer = unsyncedCustomers.find(
+          u => String(u.id) === String(customer.id)
+        );
+        
+        // If found in localStorage and has status, use that status
+        if (localCustomer && localCustomer.status) {
+          return {
+            ...customer,
+            name: customer.customerName || customer.name,
+            email: customer.customerEmail || customer.email,
+            phone: customer.phoneNumber || customer.phone,
+            status: localCustomer.status, // Use status from localStorage
+            orders: customer.orders || 0,
+            balance: customer.balance || '$0'
+          };
+        }
+        
+        // Otherwise, default to "Active"
+        return {
+          ...customer,
+          name: customer.customerName || customer.name,
+          email: customer.customerEmail || customer.email,
+          phone: customer.phoneNumber || customer.phone,
+          status: 'Active', // Default status
+          orders: customer.orders || 0,
+          balance: customer.balance || '$0'
+        };
+      });
+      
+      console.log('✅ Customers with status merged:', customerData);
+      if (customerData.length > 0) {
+        console.log('🔍 First customer after merge:', customerData[0]);
+      }
+      
       setCustomers(customerData);
     } catch (error) {
-      console.error('Error fetching customers:', error);
+      console.error('❌ Error fetching customers:', error);
       throw new Error('Failed to fetch customers');
     }
   };
@@ -134,16 +157,10 @@ export default function Dashboard() {
     try {
       const response = await axios.get(`${API_URL}/Order`, getAuthHeaders());
       const orderData = Array.isArray(response.data) ? response.data : [];
-      console.log('Orders fetched:', orderData.length);
-      
-      // Log sample for debugging
-      if (orderData.length > 0) {
-        console.log('Sample order:', orderData[0]);
-      }
-      
+      console.log('📦 Orders fetched:', orderData.length);
       setOrders(orderData);
     } catch (error) {
-      console.error('Error fetching orders:', error);
+      console.error('❌ Error fetching orders:', error);
       throw new Error('Failed to fetch orders');
     }
   };
@@ -167,53 +184,59 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  // FIXED: Normalize order status for consistent comparison
+  // Normalize order status
   const normalizeStatus = (status) => {
     if (!status) return '';
     return status.toLowerCase().replace(/\s+/g, '');
   };
 
-  // FIXED: Better status checking
   const isCompletedStatus = (status) => {
     const normalized = normalizeStatus(status);
     return ['completed', 'delivered'].includes(normalized);
   };
 
-  const isPendingStatus = (status) => {
-    const normalized = normalizeStatus(status);
-    return ['pending', 'confirmed', 'packed', 'shipped', 'outfordelivery'].includes(normalized);
-  };
-
   // Calculate stats from fetched data with time filters
   const calculateStats = () => {
-    // Filter data based on respective time filters
     const filteredCustomers = filterByTimePeriod(customers, customersTimeFilter, 'createdAt');
     const filteredOrdersForCart = filterByTimePeriod(orders, cartTimeFilter, 'orderDate');
     const filteredOrdersForStats = filterByTimePeriod(orders, ordersTimeFilter, 'orderDate');
 
-    console.log('Stats Calculation:', {
-      customersTimeFilter,
-      totalCustomers: customers.length,
-      filteredCustomers: filteredCustomers.length,
-      cartTimeFilter,
-      totalOrders: orders.length,
-      filteredOrdersForCart: filteredOrdersForCart.length,
-      ordersTimeFilter,
-      filteredOrdersForStats: filteredOrdersForStats.length
-    });
-
-    // Customer stats - FIXED: Use actual customer status from backend
     const totalCustomers = filteredCustomers.length;
+    
+    console.log('=== ACTIVE CUSTOMER CALCULATION ===');
+    console.log('Total customers:', totalCustomers);
+    
+    // SUPER DETAILED DEBUGGING - Log ALL customer data
+    console.log('🔥 RAW CUSTOMER DATA:', JSON.stringify(filteredCustomers, null, 2));
+    
+    // Count active customers based on status field
     const activeCustomers = filteredCustomers.filter(c => {
-      // Check multiple possible status field names from backend
-      const status = c.status || c.customerStatus || c.Status || '';
-      const statusLower = status.toString().toLowerCase();
+      // Get status (should now be available from localStorage merge)
+      const statusValue = c.status || c.customerStatus || c.Status || c.state || '';
+      const statusStr = String(statusValue).toLowerCase().trim();
       
-      // Active includes: 'active', 'Active', or any non-blocked status
-      return statusLower === 'active' || (statusLower !== 'blocked' && statusLower !== 'inactive');
+      // Check if explicitly "active"
+      const isExplicitlyActive = statusStr === 'active';
+      
+      // Check if explicitly "blocked"  
+      const isExplicitlyBlocked = statusStr === 'blocked';
+      
+      // ALWAYS log for debugging
+      console.log(`🔍 Customer "${c.name || c.customerName}" (ID: ${c.id}):`, {
+        rawStatus: c.status,
+        statusValue,
+        statusStr,
+        isExplicitlyActive,
+        isExplicitlyBlocked,
+        '✅ IS ACTIVE?': isExplicitlyActive
+      });
+      
+      return isExplicitlyActive;
     }).length;
     
-    // Calculate customer growth based on filter
+    console.log(`✅ Active customers: ${activeCustomers} / ${totalCustomers}`);
+    
+    // Calculate customer growth
     let customerGrowth = '0%';
     if (customersTimeFilter !== 'all') {
       const allTimeCustomers = customers.length;
@@ -221,45 +244,21 @@ export default function Dashboard() {
         const growthPercent = ((totalCustomers / allTimeCustomers) * 100).toFixed(2);
         customerGrowth = `+${growthPercent}%`;
       }
-    } else {
-      // For "all time", calculate based on recent additions
-      const recentCustomers = filterByTimePeriod(customers, 'month', 'createdAt').length;
-      const olderCustomers = customers.length - recentCustomers;
-      if (olderCustomers > 0) {
-        const growthPercent = ((recentCustomers / olderCustomers) * 100).toFixed(2);
-        customerGrowth = `+${growthPercent}%`;
-      }
     }
     
     // Order stats
     const totalOrders = filteredOrdersForStats.length;
-    
-    // Completed: only Completed and Delivered
     const completedOrders = filteredOrdersForStats.filter(o => 
       isCompletedStatus(o.orderStatus)
     ).length;
-    
-    // Pending: everything except Completed and Delivered
     const pendingOrders = filteredOrdersForStats.filter(o => 
       !isCompletedStatus(o.orderStatus)
     ).length;
 
-    console.log('Order Status Breakdown:', {
-      total: totalOrders,
-      completed: completedOrders,
-      pending: pendingOrders,
-      statusSamples: filteredOrdersForStats.slice(0, 3).map(o => ({
-        id: o.id,
-        status: o.orderStatus,
-        isCompleted: isCompletedStatus(o.orderStatus)
-      }))
-    });
-
-    // Calculate abandoned cart based on filtered orders
+    // Calculate abandoned cart
     const cartPendingOrders = filteredOrdersForCart.filter(o => 
       !isCompletedStatus(o.orderStatus)
     ).length;
-    
     const cartTotalOrders = filteredOrdersForCart.length;
     const abandonedCartPercentage = cartTotalOrders > 0 
       ? Math.round((cartPendingOrders / cartTotalOrders) * 100) 
@@ -271,14 +270,6 @@ export default function Dashboard() {
       const allTimeCompleted = orders.filter(o => isCompletedStatus(o.orderStatus)).length;
       if (allTimeCompleted > 0) {
         const growthPercent = ((completedOrders / allTimeCompleted) * 100).toFixed(2);
-        completedGrowth = `+${growthPercent}%`;
-      }
-    } else {
-      const recentCompleted = filterByTimePeriod(orders, 'month', 'orderDate')
-        .filter(o => isCompletedStatus(o.orderStatus)).length;
-      const olderCompleted = orders.filter(o => isCompletedStatus(o.orderStatus)).length - recentCompleted;
-      if (olderCompleted > 0) {
-        const growthPercent = ((recentCompleted / olderCompleted) * 100).toFixed(2);
         completedGrowth = `+${growthPercent}%`;
       }
     }
