@@ -498,9 +498,9 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
             >
               <option value="">Select status</option>
               <option value="inStock">In Stock</option>
-              <option value="lowStack">Low Stock</option>
+              <option value="lowStock">Low Stock</option>
               <option value="outOfStock">Out of Stock</option>
-              <option value="disscontinued">Discontinued</option>
+              <option value="discontinued">Discontinued</option>
               <option value="draft">Draft</option>
             </select>
           </section>
