@@ -1,4 +1,4 @@
-// src/components/ProductTable.jsx
+
 import React, { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -86,28 +86,32 @@ export default function ProductTable({
   // For display + basic semantic status
   const normalizeStatus = (raw) => {
     if (raw === undefined || raw === null) return "";
-    if (typeof raw === "boolean") return raw ? "published" : "draft";
+    if (typeof raw === "boolean") return raw ? "In Stock" : "Draft";
     if (typeof raw === "object") {
-      if (raw.published === true) return "published";
-      if (raw.draft === true) return "draft";
+      if (raw.published === true) return "In Stock";
+      if (raw.draft === true) return "Draft";
     }
     const s = String(raw).trim().toLowerCase();
-    if (
-      s === "published" ||
-      s === "publish" ||
-      s === "active" ||
-      s === "available" ||
-      s === "instock" ||
-      s === "in_stock" ||
-      s === "in stock" ||
-      s === "true"
-    ) {
-      return "published";
+    
+    // Map backend status to display status
+    if (s === "instock" || s === "in_stock" || s === "in stock") {
+      return "In Stock";
     }
-    if (s === "draft" || s === "unpublished" || s === "false") {
-      return "draft";
+    if (s === "lowstock" || s === "low_stock" || s === "low stock") {
+      return "Low Stock";
     }
-    return s;
+    if (s === "outofstock" || s === "out_of_stock" || s === "out of stock") {
+      return "Out of Stock";
+    }
+    if (s === "discontinued") {
+      return "Discontinued";
+    }
+    if (s === "draft") {
+      return "Draft";
+    }
+    
+    // Return original with proper casing if no match
+    return raw.toString().split(/(?=[A-Z])/).join(' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   // Extra status normalizer for tab logic (removes spaces, -, _ and ignores case)
@@ -137,22 +141,20 @@ export default function ProductTable({
         d.productStatus ?? d.status ?? d.state ?? d
       );
 
-      // Tabs logic (same idea as in ProductManagement)
-      if (wantTab === "published") {
-        if (statusDisplay !== "published") return false;
+      if (wantTab === "instock" || wantTab === "in stock" || wantTab === "in_stock") {
+        if (statusNormalized !== "In Stock") return false;
       } else if (
         wantTab === "lowstock" ||
         wantTab === "low-stock" ||
         wantTab === "low stock"
       ) {
-        const isStatusLow = statusTab === "lowstock"; // matches LOWSTOCK / Low Stock / low-stock / etc
-        const isQtyLow =
-          Number.isFinite(quantity) &&
-          quantity > 0 &&
-          quantity < LOW_STOCK_THRESHOLD;
-        if (!(isStatusLow || isQtyLow)) return false;
+        if (statusNormalized !== "Low Stock") return false;
+      } else if (wantTab === "outofstock" || wantTab === "out of stock" || wantTab === "out_of_stock") {
+        if (statusNormalized !== "Out of Stock") return false;
+      } else if (wantTab === "discontinued") {
+        if (statusNormalized !== "Discontinued") return false;
       } else if (wantTab === "draft") {
-        if (statusTab !== "draft") return false;
+        if (statusNormalized !== "Draft") return false;
       }
       // if tab is "all" or anything else, don't filter by tab
       return true;
@@ -386,12 +388,12 @@ export default function ProductTable({
                       {Number.isFinite(quantity) ? quantity : "—"}
                     </td>
                     <td className="col-price" role="cell">
-                      {p.basicPricing !== undefined
-                        ? `$${p.basicPricing}`
-                        : "—"}
+                      {p.basicPricing !== undefined ? `₹${p.basicPricing}` : "—"}
                     </td>
                     <td className="col-status" role="cell">
-                      {statusNormalized || (p.productStatus ?? "—")}
+                      <span className={`status-badge ${statusNormalized.toLowerCase().replace(/\s+/g, '-')}`}>
+                        {statusNormalized || (p.productStatus ?? "—")}
+                      </span>
                     </td>
                     <td className="col-added mono" role="cell">
                       {p.createdAt
@@ -621,6 +623,41 @@ export default function ProductTable({
                 >
                   <div>
                     <div style={{ fontSize: 12, color: "#6b7280" }}>SKU</div>
+                    <div style={{ fontWeight: 700 }}>{displayOrDash(viewProduct.productSKU)}</div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>Barcode</div>
+                    <div style={{ fontWeight: 700 }}>{displayOrDash(viewProduct.productBarcode)}</div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>Category</div>
+                    <div style={{ fontWeight: 700 }}>{displayOrDash(viewProduct.productCategory)}</div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>Stock</div>
+                    <div style={{ fontWeight: 700 }}>{displayOrDash(viewProduct.productQuantity ?? viewProduct.stock ?? "—")}</div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>Price</div>
+                    <div style={{ fontWeight: 700 }}>{viewProduct.basicPricing !== undefined ? `₹${viewProduct.basicPricing}` : "—"}</div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>Status</div>
+                    <div style={{ fontWeight: 700 }}>{normalizeStatus(viewProduct.productStatus ?? viewProduct.status ?? "—")}</div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>Weight</div>
+                    <div style={{ fontWeight: 700 }}>{displayOrDash(viewProduct.productWeight)}</div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>Dimensions (H×L×W cm)</div>
                     <div style={{ fontWeight: 700 }}>
                       {displayOrDash(viewProduct.productSKU)}
                     </div>
