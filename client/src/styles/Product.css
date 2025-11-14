@@ -89,6 +89,58 @@
   align-items: center;
   justify-content: center;
 }
+/* Add this to your Product.css file */
+
+/* Status Badge Styling */
+.col-status {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+/* In Stock - Green */
+.status-badge.in-stock {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+/* Low Stock - Orange */
+.status-badge.low-stock {
+  background-color: #fed7aa;
+  color: #92400e;
+}
+
+/* Out of Stock - Red */
+.status-badge.out-of-stock {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+/* Draft - Gray */
+.status-badge.draft {
+  background-color: #e5e7eb;
+  color: #374151;
+}
+
+/* Discontinued - Purple */
+.status-badge.discontinued {
+  background-color: #e9d5ff;
+  color: #6b21a8;
+}
+
+/* Published - Blue (fallback) */
+.status-badge.published {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
 
 /* subtler focus */
 .product-header-right .search-input:focus,
