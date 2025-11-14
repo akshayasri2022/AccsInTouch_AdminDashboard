@@ -611,132 +611,120 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
     })();
   }
 
-  // ACTIVE / BLOCK STATUS TOGGLE
-  async function handleToggleStatus() {
-    const newStatus = customer.status === "Active" ? "Blocked" : "Active";
+  // ===== ACTIVE / BLOCK STATUS TOGGLE (unchanged, uses backend) =====
+ // ===== FIXED: Status toggle in CustomerModal =====
+// Replace the handleToggleStatus function in CustomerManagement.jsx (around line 450)
 
-    const updatedLocal = { ...customer, status: newStatus };
-    setCustomer(updatedLocal);
-    onUpdated(updatedLocal);
+async function handleToggleStatus() {
+  const newStatus = customer.status === "Active" ? "Blocked" : "Active";
 
-    try {
-      upsertUnsyncedToStorage(updatedLocal);
-    } catch (e) {
-      console.warn("Failed to persist local status toggle", e);
-    }
+  // Optimistic UI update
+  const updatedLocal = { ...customer, status: newStatus };
+  setCustomer(updatedLocal);
+  onUpdated(updatedLocal);
 
-    const payload = { status: newStatus };
-    const maxAttempts = 3;
-    let attempt = 0;
-    let lastErr = null;
+  try {
+    upsertUnsyncedToStorage(updatedLocal);
+  } catch (e) {
+    console.warn("Failed to persist local status toggle", e);
+  }
+
+  // Send to backend - try multiple approaches
+  try {
+    console.log(`Updating customer ${customer.id} status to: ${newStatus}`);
+    
+    // Prepare payload - try both formats
+    const payload = { 
+      status: newStatus,
+      customerStatus: newStatus // Some APIs might use this field
+    };
+    
     let success = false;
+    let response = null;
 
-    while (attempt < maxAttempts && !success) {
-      attempt++;
+    // Attempt 1: PUT request to /customer/:id
+    try {
+      response = await axiosAPI.put(
+        `/customer/${encodeURIComponent(customer.id)}`,
+        payload
+      );
+      
+      console.log('PUT response:', response.data);
+      
+      if (response.status >= 200 && response.status < 300) {
+        success = true;
+      }
+    } catch (putError) {
+      console.warn('PUT failed, trying PATCH:', putError.message);
+      
+      // Attempt 2: PATCH request
       try {
-        const res = await axiosAPI.put(
+        response = await axiosAPI.patch(
           `/customer/${encodeURIComponent(customer.id)}`,
           payload
         );
-        const serverRaw = unwrap(res) || res.data;
-        if (serverRaw) {
-          const serverNormalized = normalizeCustomer(serverRaw) || serverRaw;
-          onUpdated(serverNormalized);
-          removeUnsyncedFromStorage(customer.id);
-          toast.success(`Status changed to ${newStatus}`);
+        
+        console.log('PATCH response:', response.data);
+        
+        if (response.status >= 200 && response.status < 300) {
           success = true;
-          break;
-        } else if (
-          res &&
-          typeof res.status === "number" &&
-          res.status >= 200 &&
-          res.status < 300
-        ) {
-          removeUnsyncedFromStorage(customer.id);
-          toast.success(`Status changed to ${newStatus}`);
-          success = true;
-          break;
-        } else {
-          lastErr = new Error("Unexpected response when updating status");
-          throw lastErr;
         }
-      } catch (err) {
-        lastErr = err;
-        const status = err?.response?.status;
-
-        if (status === 405 || status === 404) {
-          try {
-            const patchRes = await axiosAPI.patch(
-              `/customer/${encodeURIComponent(customer.id)}`,
-              payload
-            );
-            const patched = unwrap(patchRes) || patchRes.data;
-            if (patched) {
-              const serverNormalized = normalizeCustomer(patched) || patched;
-              onUpdated(serverNormalized);
-              removeUnsyncedFromStorage(customer.id);
-              toast.success(`Status changed to ${newStatus}`);
-              success = true;
-              break;
-            } else if (
-              patchRes &&
-              typeof patchRes.status === "number" &&
-              patchRes.status >= 200 &&
-              patchRes.status < 300
-            ) {
-              removeUnsyncedFromStorage(customer.id);
-              toast.success(`Status changed to ${newStatus}`);
-              success = true;
-              break;
-            }
-          } catch (patchErr) {
-            lastErr = patchErr;
+      } catch (patchError) {
+        console.warn('PATCH failed, trying POST to /status endpoint:', patchError.message);
+        
+        // Attempt 3: POST to dedicated status endpoint
+        try {
+          response = await axiosAPI.post(
+            `/customer/${encodeURIComponent(customer.id)}/status`,
+            payload
+          );
+          
+          console.log('POST /status response:', response.data);
+          
+          if (response.status >= 200 && response.status < 300) {
+            success = true;
           }
-        }
-
-        if (attempt === maxAttempts) {
-          try {
-            const altRes = await axiosAPI.post(
-              `/customer/${encodeURIComponent(customer.id)}/status`,
-              payload
-            );
-            const altServer = unwrap(altRes) || altRes.data;
-            if (altServer) {
-              const serverNormalized = normalizeCustomer(altServer) || altServer;
-              onUpdated(serverNormalized);
-              removeUnsyncedFromStorage(customer.id);
-              toast.success(`Status changed to ${newStatus}`);
-              success = true;
-              break;
-            }
-          } catch (altErr) {
-            lastErr = altErr;
-          }
-        }
-
-        if (!success && attempt < maxAttempts) {
-          const wait = 300 * Math.pow(2, attempt - 1);
-          await new Promise((r) => setTimeout(r, wait));
+        } catch (postError) {
+          console.error('All status update attempts failed:', postError.message);
         }
       }
     }
 
-    if (!success) {
-      const localCopy = {
-        ...updatedLocal,
-        __syncError: true,
-        __updatedAt: Date.now(),
-      };
-      try {
-        upsertUnsyncedToStorage(localCopy);
-      } catch (e) {
-        console.warn("Failed to persist unsynced status update", e);
+    if (success) {
+      // Update with server response if available
+      const serverData = unwrap(response) || response.data;
+      if (serverData) {
+        const normalized = normalizeCustomer(serverData) || serverData;
+        onUpdated(normalized);
       }
-      onUpdated(localCopy);
-      toast.info("Status updated locally — will retry syncing in background.");
-      console.warn("Failed to update status on server after retries:", lastErr);
+      
+      removeUnsyncedFromStorage(customer.id);
+      toast.success(`Status changed to ${newStatus}`);
+      console.log('Status update successful');
+    } else {
+      throw new Error('All update attempts failed');
     }
+
+  } catch (error) {
+    console.error('Failed to update status on server:', error);
+    
+    // Keep local change and mark for retry
+    const localCopy = {
+      ...updatedLocal,
+      __syncError: true,
+      __updatedAt: Date.now(),
+    };
+    
+    try {
+      upsertUnsyncedToStorage(localCopy);
+    } catch (e) {
+      console.warn("Failed to persist unsynced status update", e);
+    }
+    
+    onUpdated(localCopy);
+    toast.info("Status updated locally – will retry syncing in background.");
   }
+}
 
   return (
     <div
