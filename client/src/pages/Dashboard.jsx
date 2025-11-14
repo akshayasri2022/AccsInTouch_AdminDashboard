@@ -470,36 +470,6 @@ export default function Dashboard() {
                       >
                         All
                       </button>
-                      <button
-                        onClick={() => setOrderFilter('completed')}
-                        style={{
-                          padding: '4px 10px',
-                          fontSize: '12px',
-                          fontWeight: orderFilter === 'completed' ? '600' : '400',
-                          color: orderFilter === 'completed' ? '#6366f1' : '#94a3b8',
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          transition: 'color 0.2s'
-                        }}
-                      >
-                        Completed
-                      </button>
-                      <button
-                        onClick={() => setOrderFilter('pending')}
-                        style={{
-                          padding: '4px 10px',
-                          fontSize: '12px',
-                          fontWeight: orderFilter === 'pending' ? '600' : '400',
-                          color: orderFilter === 'pending' ? '#6366f1' : '#94a3b8',
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          transition: 'color 0.2s'
-                        }}
-                      >
-                        Pending
-                      </button>
                     </div>
                   </div>
                   <OrdersList orders={orders} filter={orderFilter} />

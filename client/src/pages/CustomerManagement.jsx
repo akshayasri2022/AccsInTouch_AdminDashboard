@@ -9,9 +9,10 @@ import "react-toastify/dist/ReactToastify.css";
 
 const axiosAPI = axios.create({
   baseURL: "https://acc-in-touch-1.onrender.com/api",
-  timeout: 5000,
+  timeout: 120000, // increased timeout
   headers: {
     "Content-Type": "application/json",
+    Accept: "application/json",
   },
 });
 
@@ -31,10 +32,12 @@ async function postWithRetry(url, payload, attempts = 3, initialDelay = 1000) {
   }
   throw lastErr;
 }
+
 function unwrap(res) {
   if (!res) return null;
   if (res.data === undefined) return null;
-  if (res.data && typeof res.data === "object" && "data" in res.data) return res.data.data;
+  if (res.data && typeof res.data === "object" && "data" in res.data)
+    return res.data.data;
   return res.data;
 }
 
@@ -59,10 +62,9 @@ function saveUnsyncedToStorage(arr) {
   }
 }
 function addUnsyncedToStorage(item) {
-  // upsert: avoid duplicates when same temp is added twice
   try {
     const arr = loadUnsyncedFromStorage();
-    const idx = arr.findIndex(x => String(x.id) === String(item.id));
+    const idx = arr.findIndex((x) => String(x.id) === String(item.id));
     if (idx === -1) arr.unshift(item);
     else arr[idx] = item;
     saveUnsyncedToStorage(arr);
@@ -71,14 +73,15 @@ function addUnsyncedToStorage(item) {
   }
 }
 function removeUnsyncedFromStorage(tempId) {
-  const arr = loadUnsyncedFromStorage().filter(x => String(x.id) !== String(tempId));
+  const arr = loadUnsyncedFromStorage().filter(
+    (x) => String(x.id) !== String(tempId)
+  );
   saveUnsyncedToStorage(arr);
 }
-// upsert: add or replace an entry in the unsynced array
 function upsertUnsyncedToStorage(item) {
   try {
     const arr = loadUnsyncedFromStorage();
-    const idx = arr.findIndex(x => String(x.id) === String(item.id));
+    const idx = arr.findIndex((x) => String(x.id) === String(item.id));
     if (idx === -1) {
       arr.unshift(item);
     } else {
@@ -121,17 +124,24 @@ function addDeletedToStorage(id) {
 }
 function removeDeletedFromStorage(id) {
   try {
-    const arr = loadDeletedFromStorage().filter(x => String(x) !== String(id));
+    const arr = loadDeletedFromStorage().filter(
+      (x) => String(x) !== String(id)
+    );
     saveDeletedToStorage(arr);
   } catch (e) {
     console.warn("Failed to remove deleted id from storage", e);
   }
 }
 
+// simple mock list as fallback
 const MOCK_CUSTOMERS = Array.from({ length: 20 }).map((_, i) => {
   const names = [
-    "Linda Blair","John Bushmill","Laura Prichet",
-    "Mohammad Karim","Tracy Williams","Bryan Barker"
+    "Linda Blair",
+    "John Bushmill",
+    "Laura Prichet",
+    "Mohammad Karim",
+    "Tracy Williams",
+    "Bryan Barker",
   ];
   const name = names[i % names.length];
   const status = i % 7 === 0 ? "Blocked" : "Active";
@@ -149,6 +159,7 @@ const MOCK_CUSTOMERS = Array.from({ length: 20 }).map((_, i) => {
     lastOnline: "1 Day Ago",
   };
 });
+
 function flagForCode(code) {
   const map = {
     "+1": "🇺🇸",
@@ -158,25 +169,31 @@ function flagForCode(code) {
   };
   return map[code] || "🌐";
 }
+
 function normalizeCustomer(raw) {
   if (!raw) return null;
   const id = raw.id ?? raw.customerId ?? raw._id ?? raw.Id ?? null;
-  const name = raw.name
-    || raw.fullName
-    || (raw.firstName && raw.lastName ? `${raw.firstName} ${raw.lastName}` : null)
-    || raw.customerName
-    || raw.Username
-    || "Unnamed";
+  const name =
+    raw.name ||
+    raw.fullName ||
+    (raw.firstName && raw.lastName
+      ? `${raw.firstName} ${raw.lastName}`
+      : null) ||
+    raw.customerName ||
+    raw.Username ||
+    "Unnamed";
   const avatar = raw.avatar ?? raw.avatarUrl ?? raw.image ?? raw.photo ?? null;
   const orders = raw.orders ?? raw.orderCount ?? raw.totalOrders ?? 0;
   const balanceVal = raw.balance ?? raw.accountBalance ?? raw.wallet ?? 0;
-  const balance = typeof balanceVal === "number" ? `$${balanceVal}` : (balanceVal || "$0");
+  const balance =
+    typeof balanceVal === "number" ? `$${balanceVal}` : balanceVal || "$0";
 
   const status = raw.status ?? raw.state ?? "Active";
   const email = raw.email ?? raw.e_mail ?? raw.emailAddress ?? "";
   const address = raw.address ?? raw.addr ?? raw.location ?? "";
   const phone = raw.phone ?? raw.phoneNumber ?? raw.mobile ?? "";
-  const lastTransaction = raw.lastTransaction ?? raw.last_txn ?? raw.lastOrderDate ?? "-";
+  const lastTransaction =
+    raw.lastTransaction ?? raw.last_txn ?? raw.lastOrderDate ?? "-";
   const lastOnline = raw.lastOnline ?? raw.lastSeen ?? raw.onlineStatus ?? "-";
 
   return {
@@ -199,20 +216,25 @@ function assignHumanIdsToUnsynced(unsynced, existing) {
   const u = Array.isArray(unsynced) ? [...unsynced] : [];
   const ex = Array.isArray(existing) ? existing : [];
   let max = 0;
-  const collect = (arr) => arr.forEach(c => {
-    if (!c) return;
-    const h = c.humanId ?? (typeof c.id === "number" ? `ID-${String(c.id).padStart(3,'0')}` : undefined);
-    if (h && String(h).startsWith("ID-")) {
-      const n = parseInt(String(h).replace(/^ID-/, ''), 10);
-      if (!isNaN(n)) max = Math.max(max, n);
-    }
-  });
+  const collect = (arr) =>
+    arr.forEach((c) => {
+      if (!c) return;
+      const h =
+        c.humanId ??
+        (typeof c.id === "number"
+          ? `ID-${String(c.id).padStart(3, "0")}`
+          : undefined);
+      if (h && String(h).startsWith("ID-")) {
+        const n = parseInt(String(h).replace(/^ID-/, ""), 10);
+        if (!isNaN(n)) max = Math.max(max, n);
+      }
+    });
   collect(ex);
   collect(u);
-  return u.map(item => {
+  return u.map((item) => {
     if (item.humanId) return item;
     max++;
-    return { ...item, humanId: `ID-${String(max).padStart(3,'0')}` };
+    return { ...item, humanId: `ID-${String(max).padStart(3, "0")}` };
   });
 }
 
@@ -278,13 +300,18 @@ function renderFriendlyId(c) {
   return String(c.id);
 }
 
-// ...existing code...
+/* ===================== Customer Modal ===================== */
+
 function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
   const [customer, setCustomer] = useState(initialCustomer || null);
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState({});
   const [submitting, setSubmitting] = useState(false);
+
+  // NEW: delete-confirm state
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (initialCustomer) {
@@ -308,7 +335,7 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
       setLoading(true);
       try {
         const unsynced = loadUnsyncedFromStorage() || [];
-        const override = unsynced.find(u => String(u.id) === String(id));
+        const override = unsynced.find((u) => String(u.id) === String(id));
         if (override) {
           if (canceled) return;
           setCustomer(override);
@@ -330,7 +357,9 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
         if (canceled) return;
         const data = unwrap(res);
         if (data) {
-          const normalized = Array.isArray(data) ? normalizeCustomer(data[0]) : normalizeCustomer(data);
+          const normalized = Array.isArray(data)
+            ? normalizeCustomer(data[0])
+            : normalizeCustomer(data);
           if (normalized) {
             setCustomer(normalized);
             setForm({
@@ -343,8 +372,12 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
         }
       } catch (err) {
         console.error("GET /customer/:id failed:", err);
-        console.warn("Failed to load customer details from server; using local fallback if available.");
-        const fallback = MOCK_CUSTOMERS.find((c) => String(c.id) === String(id));
+        console.warn(
+          "Failed to load customer details from server; using local fallback if available."
+        );
+        const fallback = MOCK_CUSTOMERS.find(
+          (c) => String(c.id) === String(id)
+        );
         if (fallback) {
           setCustomer(fallback);
           setForm({
@@ -360,72 +393,75 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
     }
 
     fetchOne();
-    return () => { canceled = true; };
+    return () => {
+      canceled = true;
+    };
   }, [id, initialCustomer]);
 
   if (!id) return null;
-  if (loading && !customer) return (
-    <div className="cm-modal-backdrop" role="dialog" aria-modal="true">
-      <div className="cm-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="cm-body">Loading...</div>
+  if (loading && !customer)
+    return (
+      <div className="cm-modal-backdrop" role="dialog" aria-modal="true">
+        <div className="cm-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="cm-body">Loading...</div>
+        </div>
       </div>
-    </div>
-  );
+    );
   if (!customer) return null;
 
-  async function handleDelete() {
-    if (!window.confirm("Delete this customer?")) return;
+  // === NEW: actual delete logic, called from the pretty popup ===
+  async function confirmDelete() {
+    if (deleting) return;
+    setDeleting(true);
+    setShowConfirmDelete(false);
 
+    // temp customer -> only local
     if (String(customer.id).startsWith("temp-")) {
-      try { removeUnsyncedFromStorage(customer.id); } catch (e) { /* ignore */ }
+      try {
+        removeUnsyncedFromStorage(customer.id);
+      } catch (e) {
+        /* ignore */
+      }
       onDeleted(customer.id);
       onClose();
       toast.success("Customer removed locally.");
+      setDeleting(false);
       return;
     }
 
     try {
       const res = await axiosAPI.delete(`/customer/${customer.id}`);
-      const status = res && res.status ? res.status : (res && res.data && res.data.status ? res.data.status : null);
+      const status =
+        res && res.status
+          ? res.status
+          : res && res.data && res.data.status
+          ? res.data.status
+          : null;
 
       if (status && Math.floor(status / 100) === 2) {
         removeDeletedFromStorage(customer.id);
         onDeleted(customer.id);
         onClose();
         toast.success("Customer deleted successfully.");
-        return;
+      } else {
+        console.warn("DELETE returned non-2xx status:", res);
+        addDeletedToStorage(customer.id);
+        onDeleted(customer.id);
+        onClose();
+        toast.info("Customer removed locally (server returned error).");
       }
-
-      console.warn("DELETE returned non-2xx status:", res);
-      // tombstone locally so refresh doesn't bring back the record
-      addDeletedToStorage(customer.id);
-      onDeleted(customer.id);
-      onClose();
-      toast.success("Customer removed locally.");
     } catch (err) {
       console.error("DELETE failed:", err);
-
-      const maybeDeleted =
-        err?.response?.status === 404
-        || (err?.response?.status >= 200 && err?.response?.status < 300);
-
-      if (maybeDeleted) {
-        removeDeletedFromStorage(customer.id);
-        onDeleted(customer.id);
-        onClose();
-        toast.success("Customer deleted (server indicated not found).");
-        return;
+      // fall back to local delete
+      addDeletedToStorage(customer.id);
+      if (String(customer.id).startsWith("temp-")) {
+        removeUnsyncedFromStorage(customer.id);
       }
-
-      if (window.confirm("Failed to delete on server. Remove locally anyway?")) {
-        addDeletedToStorage(customer.id);
-        if (String(customer.id).startsWith("temp-")) removeUnsyncedFromStorage(customer.id);
-        onDeleted(customer.id);
-        onClose();
-        toast.success("Customer removed locally.");
-      } else {
-        toast.info("Delete cancelled.");
-      }
+      onDeleted(customer.id);
+      onClose();
+      toast.info("Customer removed locally — will retry syncing.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -446,7 +482,7 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
       address: form.address,
     };
 
-    // optimistic update in UI and persist immediately so refresh won't lose it
+    // optimistic UI update
     setCustomer(payload);
     onUpdated(payload);
     try {
@@ -455,11 +491,16 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
       console.warn("Failed to persist optimistic update", e);
     }
 
-    // if temp item, keep local-only and close
     if (String(payload.id).startsWith("temp-")) {
       try {
-        upsertUnsyncedToStorage({ ...payload, __local: true, __updatedAt: Date.now() });
-      } catch (e) { console.warn(e); }
+        upsertUnsyncedToStorage({
+          ...payload,
+          __local: true,
+          __updatedAt: Date.now(),
+        });
+      } catch (e) {
+        console.warn(e);
+      }
       setSubmitting(false);
       setEditMode(false);
       onClose();
@@ -475,17 +516,31 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
     while (attempt < maxAttempts && !success) {
       attempt++;
       try {
-        const res = await axiosAPI.put(`/customer/${encodeURIComponent(payload.id)}`, payload);
+        const res = await axiosAPI.put(
+          `/customer/${encodeURIComponent(payload.id)}`,
+          payload
+        );
         const serverRaw = unwrap(res) || res.data;
         if (serverRaw) {
           const serverNormalized = normalizeCustomer(serverRaw) || serverRaw;
-          // apply canonical server record
           onUpdated(serverNormalized);
-          // remove persisted pending copy
-          try { removeUnsyncedFromStorage(payload.id); } catch (e) { /* ignore */ }
+          try {
+            removeUnsyncedFromStorage(payload.id);
+          } catch (e) {
+            /* ignore */
+          }
           toast.success("Customer updated on server.");
-        } else if (res && typeof res.status === "number" && res.status >= 200 && res.status < 300) {
-          try { removeUnsyncedFromStorage(payload.id); } catch (e) { /* ignore */ }
+        } else if (
+          res &&
+          typeof res.status === "number" &&
+          res.status >= 200 &&
+          res.status < 300
+        ) {
+          try {
+            removeUnsyncedFromStorage(payload.id);
+          } catch (e) {
+            /* ignore */
+          }
           toast.success("Customer update acknowledged by server.");
         } else {
           lastErr = new Error("Unexpected PUT response");
@@ -495,10 +550,9 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
         break;
       } catch (err) {
         lastErr = err;
-        // retry on transient errors
         if (attempt < maxAttempts) {
           const wait = 500 * Math.pow(2, attempt - 1);
-          await new Promise(r => setTimeout(r, wait));
+          await new Promise((r) => setTimeout(r, wait));
         } else {
           console.warn("PUT failed after retries", err);
         }
@@ -506,8 +560,11 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
     }
 
     if (!success) {
-      // mark persisted item as having a sync error
-      const localCopy = { ...payload, __syncError: true, __updatedAt: Date.now() };
+      const localCopy = {
+        ...payload,
+        __syncError: true,
+        __updatedAt: Date.now(),
+      };
       onUpdated(localCopy);
       try {
         upsertUnsyncedToStorage(localCopy);
@@ -522,16 +579,162 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
     onClose();
   }
 
+  // ===== ACTIVE / BLOCK STATUS TOGGLE (unchanged, uses backend) =====
+  async function handleToggleStatus() {
+    const newStatus = customer.status === "Active" ? "Blocked" : "Active";
+
+    const updatedLocal = { ...customer, status: newStatus };
+    setCustomer(updatedLocal);
+    onUpdated(updatedLocal);
+
+    try {
+      upsertUnsyncedToStorage(updatedLocal);
+    } catch (e) {
+      console.warn("Failed to persist local status toggle", e);
+    }
+
+    const payload = { status: newStatus };
+    const maxAttempts = 3;
+    let attempt = 0;
+    let lastErr = null;
+    let success = false;
+
+    while (attempt < maxAttempts && !success) {
+      attempt++;
+      try {
+        const res = await axiosAPI.put(
+          `/customer/${encodeURIComponent(customer.id)}`,
+          payload
+        );
+        const serverRaw = unwrap(res) || res.data;
+        if (serverRaw) {
+          const serverNormalized = normalizeCustomer(serverRaw) || serverRaw;
+          onUpdated(serverNormalized);
+          removeUnsyncedFromStorage(customer.id);
+          toast.success(`Status changed to ${newStatus}`);
+          success = true;
+          break;
+        } else if (
+          res &&
+          typeof res.status === "number" &&
+          res.status >= 200 &&
+          res.status < 300
+        ) {
+          removeUnsyncedFromStorage(customer.id);
+          toast.success(`Status changed to ${newStatus}`);
+          success = true;
+          break;
+        } else {
+          lastErr = new Error("Unexpected response when updating status");
+          throw lastErr;
+        }
+      } catch (err) {
+        lastErr = err;
+        const status = err?.response?.status;
+
+        if (status === 405 || status === 404) {
+          try {
+            const patchRes = await axiosAPI.patch(
+              `/customer/${encodeURIComponent(customer.id)}`,
+              payload
+            );
+            const patched = unwrap(patchRes) || patchRes.data;
+            if (patched) {
+              const serverNormalized = normalizeCustomer(patched) || patched;
+              onUpdated(serverNormalized);
+              removeUnsyncedFromStorage(customer.id);
+              toast.success(`Status changed to ${newStatus}`);
+              success = true;
+              break;
+            } else if (
+              patchRes &&
+              typeof patchRes.status === "number" &&
+              patchRes.status >= 200 &&
+              patchRes.status < 300
+            ) {
+              removeUnsyncedFromStorage(customer.id);
+              toast.success(`Status changed to ${newStatus}`);
+              success = true;
+              break;
+            }
+          } catch (patchErr) {
+            lastErr = patchErr;
+          }
+        }
+
+        if (attempt === maxAttempts) {
+          try {
+            const altRes = await axiosAPI.post(
+              `/customer/${encodeURIComponent(customer.id)}/status`,
+              payload
+            );
+            const altServer = unwrap(altRes) || altRes.data;
+            if (altServer) {
+              const serverNormalized = normalizeCustomer(altServer) || altServer;
+              onUpdated(serverNormalized);
+              removeUnsyncedFromStorage(customer.id);
+              toast.success(`Status changed to ${newStatus}`);
+              success = true;
+              break;
+            }
+          } catch (altErr) {
+            lastErr = altErr;
+          }
+        }
+
+        if (!success && attempt < maxAttempts) {
+          const wait = 300 * Math.pow(2, attempt - 1);
+          await new Promise((r) => setTimeout(r, wait));
+        }
+      }
+    }
+
+    if (!success) {
+      const localCopy = {
+        ...updatedLocal,
+        __syncError: true,
+        __updatedAt: Date.now(),
+      };
+      try {
+        upsertUnsyncedToStorage(localCopy);
+      } catch (e) {
+        console.warn("Failed to persist unsynced status update", e);
+      }
+      onUpdated(localCopy);
+      toast.info("Status updated locally — will retry syncing in background.");
+      console.warn("Failed to update status on server after retries:", lastErr);
+    }
+  }
+
   return (
-    <div className="cm-modal-backdrop" role="dialog" aria-modal="true" onClick={() => { if (!submitting) onClose(); }}>
+    <div
+      className="cm-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onClick={() => {
+        if (!submitting && !deleting) onClose();
+      }}
+    >
       <div className="cm-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="cm-close" onClick={() => { if (!submitting) onClose(); }} aria-label="Close">✕</button>
+        <button
+          className="cm-close"
+          onClick={() => {
+            if (!submitting && !deleting) onClose();
+          }}
+          aria-label="Close"
+        >
+          ✕
+        </button>
 
         <div className="cm-header">
           <div className="cm-banner" />
           <div className="cm-avatar-large-wrap">
             {customer.avatar ? (
-              <img src={customer.avatar} alt={customer.name} className="cm-avatar-large" />
+              <img
+                src={customer.avatar}
+                alt={customer.name}
+                className="cm-avatar-large"
+              />
             ) : (
               <div className="cm-avatar-large cm-avatar-empty" />
             )}
@@ -542,45 +745,18 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
           {!editMode ? (
             <>
               <h3 className="cm-name">{customer.name}</h3>
+
               <button
-  className={`cm-status-toggle ${customer.status === "Active" ? "active" : "blocked"}`}
-  onClick={(e) => {
-    e.stopPropagation();
-
-    const newStatus = customer.status === "Active" ? "Blocked" : "Active";
-
-    // optimistic UI update
-    const updated = { ...customer, status: newStatus };
-    setCustomer(updated);
-    onUpdated(updated);
-
-    try {
-      // save locally to unsynced
-      upsertUnsyncedToStorage(updated);
-    } catch (e) {
-      console.warn("Failed to persist local status toggle");
-    }
-
-    // send update to server
-    axiosAPI.put(`/customer/${customer.id}`, updated)
-      .then((res) => {
-        const server = unwrap(res);
-        if (server) {
-          const norm = normalizeCustomer(server);
-          onUpdated(norm);
-          removeUnsyncedFromStorage(updated.id);
-          toast.success(`Status changed to ${newStatus}`);
-        }
-      })
-      .catch((err) => {
-        console.warn("Status update failed, keeping local", err);
-        toast.info("Saved locally — will sync later.");
-      });
-  }}
->
-  {customer.status}
-</button>
-
+                className={`cm-status-toggle ${
+                  customer.status === "Active" ? "active" : "blocked"
+                }`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleStatus();
+                }}
+              >
+                {customer.status}
+              </button>
 
               <hr className="cm-sep" />
 
@@ -589,7 +765,9 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
                   <span className="cm-icon">📇</span>
                   <div>
                     <div className="cm-info-title">Customer ID</div>
-                    <div className="cm-info-sub">{renderFriendlyId(customer)}</div>
+                    <div className="cm-info-sub">
+                      {renderFriendlyId(customer)}
+                    </div>
                   </div>
                 </li>
 
@@ -621,7 +799,9 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
                   <span className="cm-icon">🧾</span>
                   <div>
                     <div className="cm-info-title">Last Transaction</div>
-                    <div className="cm-info-sub">{customer.lastTransaction}</div>
+                    <div className="cm-info-sub">
+                      {customer.lastTransaction}
+                    </div>
                   </div>
                 </li>
 
@@ -634,7 +814,14 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
                 </li>
               </ul>
 
-              <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 14 }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  justifyContent: "center",
+                  marginTop: 14,
+                }}
+              >
                 <button
                   className="cm-btn ghost cancel"
                   onClick={() => {
@@ -646,10 +833,17 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
                       address: customer.address || "",
                     });
                   }}
+                  disabled={deleting}
                 >
                   Edit
                 </button>
-                <button className="cm-btn add-action" onClick={handleDelete}>Delete</button>
+                <button
+                  className="cm-btn add-action"
+                  onClick={() => setShowConfirmDelete(true)}
+                  disabled={deleting}
+                >
+                  {deleting ? "Deleting..." : "Delete"}
+                </button>
               </div>
             </>
           ) : (
@@ -658,34 +852,125 @@ function CustomerModal({ id, initialCustomer, onClose, onUpdated, onDeleted }) {
 
               <div style={{ textAlign: "left", marginTop: 10 }}>
                 <label className="label">Name</label>
-                <input className="form-input" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} disabled={submitting}/>
+                <input
+                  className="form-input"
+                  value={form.name}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, name: e.target.value }))
+                  }
+                  disabled={submitting || deleting}
+                />
 
-                <label className="label" style={{ marginTop: 8 }}>Email</label>
-                <input className="form-input" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} disabled={submitting}/>
+                <label className="label" style={{ marginTop: 8 }}>
+                  Email
+                </label>
+                <input
+                  className="form-input"
+                  value={form.email}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, email: e.target.value }))
+                  }
+                  disabled={submitting || deleting}
+                />
 
-                <label className="label" style={{ marginTop: 8 }}>Phone</label>
-                <input className="form-input" value={form.phone} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} disabled={submitting}/>
+                <label className="label" style={{ marginTop: 8 }}>
+                  Phone
+                </label>
+                <input
+                  className="form-input"
+                  value={form.phone}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, phone: e.target.value }))
+                  }
+                  disabled={submitting || deleting}
+                />
 
-                <label className="label" style={{ marginTop: 8 }}>Address</label>
-                <input className="form-input" value={form.address} onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))} disabled={submitting}/>
+                <label className="label" style={{ marginTop: 8 }}>
+                  Address
+                </label>
+                <input
+                  className="form-input"
+                  value={form.address}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, address: e.target.value }))
+                  }
+                  disabled={submitting || deleting}
+                />
 
                 <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                  <button type="button" className="cm-btn ghost cancel" onClick={() => setEditMode(false)} disabled={submitting}>Cancel</button>
-                  <button type="submit" className="cm-btn add-action" disabled={submitting}>{submitting ? "Saving..." : "Save"}</button>
+                  <button
+                    type="button"
+                    className="cm-btn ghost cancel"
+                    onClick={() => setEditMode(false)}
+                    disabled={submitting || deleting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="cm-btn add-action"
+                    disabled={submitting || deleting}
+                  >
+                    {submitting ? "Saving..." : "Save"}
+                  </button>
                 </div>
               </div>
             </form>
           )}
         </div>
       </div>
+
+      {/* ===== NICE CONFIRM POPUP ===== */}
+      {showConfirmDelete && (
+        <div
+          className="cm-confirm-backdrop"
+          onClick={() => setShowConfirmDelete(false)}
+        >
+          <div
+            className="cm-confirm-dialog"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="cm-confirm-icon">⚠️</div>
+            <h4 className="cm-confirm-title">Delete this customer?</h4>
+            <p className="cm-confirm-text">
+              {customer.name
+                ? `Are you sure you want to delete “${customer.name}”? This action cannot be undone.`
+                : "Are you sure you want to delete this customer? This action cannot be undone."}
+            </p>
+
+            <div className="cm-confirm-actions">
+              <button
+                type="button"
+                className="cm-btn ghost cancel"
+                onClick={() => setShowConfirmDelete(false)}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="cm-btn add-action"
+                onClick={confirmDelete}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-// ...existing code...
+
+
+/* ===================== Add Customer Modal ===================== */
 
 function AddCustomerModal({ onClose, onAdd, onSync }) {
   useEffect(() => {
-    function onKey(e) { if (e.key === "Escape") onClose(); }
+    function onKey(e) {
+      if (e.key === "Escape") onClose();
+    }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -731,7 +1016,12 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
     };
 
     const tempId = `temp-${Date.now()}`;
-    const tempItem = { id: tempId, ...payload, __local: true, __createdAt: Date.now() };
+    const tempItem = {
+      id: tempId,
+      ...payload,
+      __local: true,
+      __createdAt: Date.now(),
+    };
 
     onAdd(tempItem);
     addUnsyncedToStorage(tempItem);
@@ -744,9 +1034,10 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
 
     try {
       const res = await postWithRetry("/customer", payload, 3, 1000);
-
       const created = unwrap(res) || res.data || null;
-      const normalized = created ? (normalizeCustomer(created) || created) : null;
+      const normalized = created
+        ? normalizeCustomer(created) || created
+        : null;
 
       if (normalized && (normalized.id || normalized._id)) {
         if (onSync) onSync(tempId, normalized);
@@ -757,9 +1048,19 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
           toastClassName: "react-toastify-center",
           autoClose: 1800,
         });
-      } else if (res && typeof res.status === "number" && res.status >= 200 && res.status < 300) {
+      } else if (
+        res &&
+        typeof res.status === "number" &&
+        res.status >= 200 &&
+        res.status < 300
+      ) {
         removeUnsyncedFromStorage(tempId);
-        console.log("Server acknowledged create request for temp:", tempId, "status:", res.status);
+        console.log(
+          "Server acknowledged create request for temp:",
+          tempId,
+          "status:",
+          res.status
+        );
         toast.success("Server acknowledged request.", {
           containerId: "center",
           toastClassName: "react-toastify-center",
@@ -777,9 +1078,15 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
         });
       }
     } catch (err) {
-      console.error("POST failed after retries (optimistic flow):", err, err?.response?.data || err?.message);
+      console.error(
+        "POST failed after retries (optimistic flow):",
+        err,
+        err?.response?.data || err?.message
+      );
       if (onSync) onSync(tempId, { ...tempItem, __syncError: true });
-      const arr = loadUnsyncedFromStorage().map(x => String(x.id) === tempId ? { ...x, __syncError: true } : x);
+      const arr = loadUnsyncedFromStorage().map((x) =>
+        String(x.id) === tempId ? { ...x, __syncError: true } : x
+      );
       saveUnsyncedToStorage(arr);
       toast.info("Saved locally — will retry syncing in background.", {
         containerId: "center",
@@ -792,27 +1099,50 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
   }
 
   return (
-    <div className="cm-add-backdrop" onClick={onClose} role="dialog" aria-modal="true">
+    <div
+      className="cm-add-backdrop"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
       <div className="cm-add-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="cm-close" onClick={onClose} aria-label="Close">✕</button>
+        <button className="cm-close" onClick={onClose} aria-label="Close">
+          ✕
+        </button>
         <h3 className="add-modal-title">Add a New Customer</h3>
 
         <form className="add-modal-form" onSubmit={submit} noValidate>
           <label className="label">Customer Information</label>
 
           <div className="form-row">
-            <input className={`form-input ${errors.name ? "input-error" : ""}`} value={name} onChange={(e)=>setName(e.target.value)} placeholder="Customer Name" />
+            <input
+              className={`form-input ${errors.name ? "input-error" : ""}`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Customer Name"
+            />
             {errors.name && <div className="field-error">{errors.name}</div>}
           </div>
 
           <div className="form-row">
-            <input className={`form-input ${errors.email ? "input-error" : ""}`} value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="Customer Email" />
+            <input
+              className={`form-input ${errors.email ? "input-error" : ""}`}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Customer Email"
+            />
             {errors.email && <div className="field-error">{errors.email}</div>}
           </div>
 
           <div className="phone-row">
-            <div className="country-select-wrap" role="presentation" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span className="flag-icon" aria-hidden="true">{flagForCode(countryCode)}</span>
+            <div
+              className="country-select-wrap"
+              role="presentation"
+              style={{ display: "flex", alignItems: "center", gap: 8 }}
+            >
+              <span className="flag-icon" aria-hidden="true">
+                {flagForCode(countryCode)}
+              </span>
               <select
                 className="country-select"
                 value={countryCode}
@@ -826,30 +1156,70 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
               </select>
             </div>
 
-            <input className="form-input phone-input" value={phone} onChange={(e)=>setPhone(e.target.value)} placeholder="PhoneNumber" />
+            <input
+              className="form-input phone-input"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="PhoneNumber"
+            />
           </div>
 
-          <label className="label toggle-row add-address-toggle" style={{ marginTop: 12, display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 8 }}>
-            <span style={{ fontSize: 14, color: "rgba(94, 96, 99, 1)" }}>Add Address</span>
-            <ToggleSwitch checked={addAddress} onChange={(v) => setAddAddress(v)} ariaLabel="Add address" />
+          <label
+            className="label toggle-row add-address-toggle"
+            style={{
+              marginTop: 12,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-start",
+              gap: 8,
+            }}
+          >
+            <span
+              style={{ fontSize: 14, color: "rgba(94, 96, 99, 1)" }}
+            >
+              Add Address
+            </span>
+            <ToggleSwitch
+              checked={addAddress}
+              onChange={(v) => setAddAddress(v)}
+              ariaLabel="Add address"
+            />
           </label>
 
           {addAddress && (
             <>
               <div className="form-row">
-                <input className="form-input" value={street} onChange={(e)=>setStreet(e.target.value)} placeholder="Building No., Street Address" />
+                <input
+                  className="form-input"
+                  value={street}
+                  onChange={(e) => setStreet(e.target.value)}
+                  placeholder="Building No., Street Address"
+                />
               </div>
               <div className="form-row">
-                <input className="form-input" value={city} onChange={(e)=>setCity(e.target.value)} placeholder="City" />
+                <input
+                  className="form-input"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="City"
+                />
               </div>
               <div className="form-row form-grid">
-                <select className="form-input" value={country} onChange={(e)=>setCountry(e.target.value)}>
+                <select
+                  className="form-input"
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                >
                   <option value="">Country</option>
                   <option>USA</option>
                   <option>UK</option>
                   <option>India</option>
                 </select>
-                <select className="form-input" value={stateVal} onChange={(e)=>setStateVal(e.target.value)}>
+                <select
+                  className="form-input"
+                  value={stateVal}
+                  onChange={(e) => setStateVal(e.target.value)}
+                >
                   <option value="">State</option>
                   <option>CA</option>
                   <option>NY</option>
@@ -857,10 +1227,27 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
               </div>
 
               <div style={{ marginTop: 10 }}>
-                <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 8, fontWeight: 600 }}>Billing Address</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ fontSize: 14, color: "#6b7280" }}>Same as Customer Address</div>
-                  <ToggleSwitch checked={sameBilling} onChange={(v) => setSameBilling(v)} ariaLabel="Same as customer address" />
+                <div
+                  style={{
+                    fontSize: 14,
+                    color: "#6b7280",
+                    marginBottom: 8,
+                    fontWeight: 600,
+                  }}
+                >
+                  Billing Address
+                </div>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: 8 }}
+                >
+                  <div style={{ fontSize: 14, color: "#6b7280" }}>
+                    Same as Customer Address
+                  </div>
+                  <ToggleSwitch
+                    checked={sameBilling}
+                    onChange={(v) => setSameBilling(v)}
+                    ariaLabel="Same as customer address"
+                  />
                 </div>
               </div>
             </>
@@ -868,17 +1255,45 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
 
           {!addAddress && (
             <div style={{ marginTop: 8 }}>
-              <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 6, fontWeight: 600 }}>Billing Address</div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: "#6b7280",
+                  marginBottom: 6,
+                  fontWeight: 600,
+                }}
+              >
+                Billing Address
+              </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ fontSize: 14, color: "#6b7280" }}>Same as Customer Address</div>
-                <ToggleSwitch checked={sameBilling} onChange={(v) => setSameBilling(v)} ariaLabel="Same as customer address" />
+                <div style={{ fontSize: 14, color: "#6b7280" }}>
+                  Same as Customer Address
+                </div>
+                <ToggleSwitch
+                  checked={sameBilling}
+                  onChange={(v) => setSameBilling(v)}
+                  ariaLabel="Same as customer address"
+                />
               </div>
             </div>
           )}
 
           <div className="modal-actions">
-            <button type="button" className="cm-btn ghost cancel" onClick={onClose} disabled={submitting}>Cancel</button>
-            <button type="submit" className="cm-btn add-action" disabled={submitting}>{submitting ? "Adding..." : "Add"}</button>
+            <button
+              type="button"
+              className="cm-btn ghost cancel"
+              onClick={onClose}
+              disabled={submitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="cm-btn add-action"
+              disabled={submitting}
+            >
+              {submitting ? "Adding..." : "Add"}
+            </button>
           </div>
         </form>
       </div>
@@ -886,12 +1301,293 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
   );
 }
 
+/* ===================== NEW: Toolbar component ===================== */
+
+/* ===================== Toolbar component ===================== */
+
+function CustomerToolbar({
+  query,
+  setQuery,
+  tab,
+  setTab,
+  ordersFilter,
+  setOrdersFilter,
+  ordersMenuOpen,
+  setOrdersMenuOpen,
+  ordersMenuRef,
+  setPage,
+  handleExportVisible,
+  onOpenAdd,
+}) {
+  return (
+    <div className="cm-top">
+      {/* Row 1: Search + Export + Add */}
+      <div className="cm-top-row">
+        <div className="cm-search-wrap">
+          <input
+            className="cm-search-input"
+            placeholder="Search customer..."
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+
+        <div className="cm-right-controls">
+          <button
+            className="cm-btn cm-export-btn"
+            onClick={handleExportVisible}
+          >
+            ⬇️ Export
+          </button>
+
+          <div className="cm-add-column">
+            <button
+              className="cm-btn cm-add-btn"
+              onClick={onOpenAdd}
+            >
+              ＋ Add Customer
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 2: Tabs left + Filters right */}
+      <div className="cm-tabs-row">
+        <div className="tabs-compact">
+          {["All", "Active", "Blocked"].map((t) => (
+            <button
+              key={t}
+              className={`cm-tab ${tab === t ? "active" : ""}`}
+              onClick={() => {
+                setTab(t);
+                setPage(1);
+              }}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {/* Filters button + dropdown on the right */}
+        <div style={{ position: "relative" }} ref={ordersMenuRef}>
+          <button
+            className="cm-btn cm-filter-btn"
+            onClick={() => setOrdersMenuOpen((o) => !o)}
+          >
+            ⚙️ Filters
+          </button>
+
+          {ordersMenuOpen && (
+            <div
+              style={{
+                position: "absolute",
+                right: 0,
+                top: "42px",
+                background: "#fff",
+                border: "1px solid rgba(16,24,40,0.06)",
+                boxShadow: "0 12px 30px rgba(11,15,25,0.08)",
+                borderRadius: 12,
+                padding: 10,
+                zIndex: 60,
+                minWidth: 130,
+              }}
+              role="menu"
+            >
+              {[
+                { key: "Any", label: "Order" },
+                { key: "0-10", label: "0–10" },
+                { key: "11-25", label: "11–25" },
+                { key: "26+", label: "26+" },
+              ].map((opt, idx) => (
+                <button
+                  key={opt.key}
+                  onClick={() => {
+                    setOrdersFilter(opt.key);
+                    setOrdersMenuOpen(false);
+                    setPage(1);
+                  }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    background:
+                      ordersFilter === opt.key
+                        ? "linear-gradient(180deg,#fff1ff,#fef6ff)"
+                        : "transparent",
+                    color: ordersFilter === opt.key ? "#6b46b6" : "#222",
+                    border: "none",
+                    borderRadius: 8,
+                    fontWeight: 600,
+                    fontSize: 16,
+                    cursor: "pointer",
+                    marginBottom: idx === 3 ? 0 : 8,
+                  }}
+                  role="menuitem"
+                  aria-checked={ordersFilter === opt.key}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ===================== NEW: Grid + pagination component ===================== */
+
+function CustomerGridSection({
+  paged,
+  filteredLength,
+  start,
+  perPage,
+  page,
+  pages,
+  goPage,
+  selectedIds,
+  toggleSelect,
+  setProfileOpenId,
+  gridRef,
+}) {
+  return (
+    <>
+      {/* CARD GRID */}
+      <div ref={gridRef} className="cm-grid" style={{ marginTop: 12 }}>
+        {paged.map((c) => {
+          const isSelected = selectedIds.has(c.id);
+          return (
+            <div
+              key={c.id}
+              className={`cm-card ${isSelected ? "selected" : ""}`}
+              onClick={() => setProfileOpenId(c.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setProfileOpenId(c.id);
+              }}
+            >
+              <div className="cm-card-top">
+                <label
+                  className="card-checkbox"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleSelect(c.id)}
+                    aria-label={`Select ${c.name}`}
+                  />
+                  <span className="checkbox-fake" />
+                </label>
+                <button
+                  className="card-more"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                >
+                  ⋮
+                </button>
+              </div>
+
+              <div className="cm-avatar-wrap">
+                {c.avatar ? (
+                  <img src={c.avatar} alt={c.name} className="cm-avatar" />
+                ) : (
+                  <div className="cm-avatar cm-avatar-empty" />
+                )}
+              </div>
+
+              <div className="cm-card-body">
+                <div className="cm-card-name">{c.name}</div>
+                <div
+                  className={`cm-status-badge ${
+                    c.status?.toLowerCase() || ""
+                  }`}
+                >
+                  {c.status}
+                </div>
+
+                <div className="card-stats">
+                  <div>
+                    <div className="stat-label">Orders</div>
+                    <div className="stat-value">{c.orders}</div>
+                  </div>
+                  <div>
+                    <div className="stat-label">Balance</div>
+                    <div className="stat-value">
+                      ₹
+                      {(
+                        Number(
+                          c.balance?.toString().replace(/[^0-9.-]/g, "")
+                        ) || 0
+                      ).toLocaleString("en-IN")}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* FOOTER / PAGINATION */}
+      <div className="cm-footer">
+        <div className="summary">
+          Showing {filteredLength === 0 ? 0 : start + 1}–
+          {Math.min(start + perPage, filteredLength)} of {filteredLength}
+        </div>
+
+        <div className="cm-pager" role="navigation" aria-label="Pagination">
+          <button
+            className="cm-page"
+            onClick={() => goPage(page - 1)}
+            disabled={page === 1}
+          >
+            «
+          </button>
+          {Array.from({ length: pages }).map((_, i) => {
+            const p = i + 1;
+            return (
+              <button
+                key={p}
+                className={`cm-page ${page === p ? "active" : ""}`}
+                onClick={() => goPage(p)}
+                aria-current={page === p ? "page" : undefined}
+              >
+                {p}
+              </button>
+            );
+          })}
+          <button
+            className="cm-page"
+            onClick={() => goPage(page + 1)}
+            disabled={page === pages}
+          >
+            »
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ===================== Main Customer Management ===================== */
+
 export default function CustomerManagement() {
-  const [customers, setCustomers] = useState([]); // loaded from API
+  const [customers, setCustomers] = useState([]);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState("All");
   const [page, setPage] = useState(1);
-  const perPage = 8; // 4 per row x 2 rows
+  const perPage = 8;
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [profileOpenId, setProfileOpenId] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -905,37 +1601,47 @@ export default function CustomerManagement() {
       const res = await axiosAPI.get("/customer");
       const data = unwrap(res);
       const serverList = Array.isArray(data) ? data : [];
-      const normalizedServer = serverList.map(item => {
+      const normalizedServer = serverList.map((item) => {
         const n = normalizeCustomer(item) || item;
-        if (!n.id) console.warn("normalizeCustomer produced no id for item:", item);
+        if (!n.id)
+          console.warn("normalizeCustomer produced no id for item:", item);
         return n;
       });
 
-      // load unsynced and tombstones
       let unsynced = loadUnsyncedFromStorage() || [];
-      // ensure humanId assignment for display
       unsynced = assignHumanIdsToUnsynced(unsynced, normalizedServer);
       saveUnsyncedToStorage(unsynced);
 
       const deleted = new Set(loadDeletedFromStorage().map(String));
-      // filter out server records that have been tombstoned locally
-      const filteredServer = normalizedServer.filter(s => !deleted.has(String(s.id)));
+      const filteredServer = normalizedServer.filter(
+        (s) => !deleted.has(String(s.id))
+      );
 
-      const unsyncedMap = new Map(unsynced.map(u => [String(u.id), u]));
-      const mergedServer = filteredServer.map(s => {
+      const unsyncedMap = new Map(unsynced.map((u) => [String(u.id), u]));
+      const mergedServer = filteredServer.map((s) => {
         const override = unsyncedMap.get(String(s.id));
         return override ? override : s;
       });
-      const pendingTemps = unsynced.filter(u => String(u.id).startsWith("temp-"));
-      // don't show server records that were tombstoned
+      const pendingTemps = unsynced.filter((u) =>
+        String(u.id).startsWith("temp-")
+      );
       setCustomers([...pendingTemps, ...mergedServer]);
     } catch (err) {
       console.error("GET /customer failed:", err);
       toast.info("Failed to load customers from server — showing local data.");
-      const unsynced = assignHumanIdsToUnsynced(loadUnsyncedFromStorage() || [], MOCK_CUSTOMERS);
+      const unsynced = assignHumanIdsToUnsynced(
+        loadUnsyncedFromStorage() || [],
+        MOCK_CUSTOMERS
+      );
       saveUnsyncedToStorage(unsynced);
       const deleted = new Set(loadDeletedFromStorage().map(String));
-      setCustomers(unsynced.filter(u => !deleted.has(String(u.id))).concat(MOCK_CUSTOMERS.filter(m => !deleted.has(String(m.id)))));
+      setCustomers(
+        unsynced
+          .filter((u) => !deleted.has(String(u.id)))
+          .concat(
+            MOCK_CUSTOMERS.filter((m) => !deleted.has(String(m.id)))
+          )
+      );
     }
   }
 
@@ -947,20 +1653,32 @@ export default function CustomerManagement() {
       for (const temp of unsynced) {
         try {
           const payload = {
-            name: temp.name, email: temp.email, phone: temp.phone, address: temp.address,
-            avatar: temp.avatar, orders: temp.orders, balance: temp.balance, status: temp.status,
-            lastTransaction: temp.lastTransaction, lastOnline: temp.lastOnline,
+            name: temp.name,
+            email: temp.email,
+            phone: temp.phone,
+            address: temp.address,
+            avatar: temp.avatar,
+            orders: temp.orders,
+            balance: temp.balance,
+            status: temp.status,
+            lastTransaction: temp.lastTransaction,
+            lastOnline: temp.lastOnline,
           };
           const r = await postWithRetry("/customer", payload, 3, 1000);
           const created = unwrap(r) || r.data || null;
-          const normalized = created ? (normalizeCustomer(created) || created) : null;
+          const normalized = created
+            ? normalizeCustomer(created) || created
+            : null;
           if (normalized && (normalized.id || normalized._id)) {
-            setCustomers(prev => {
-              const idx = prev.findIndex(c => String(c.id) === String(temp.id));
+            setCustomers((prev) => {
+              const idx = prev.findIndex(
+                (c) => String(c.id) === String(temp.id)
+              );
               if (idx === -1) return [normalized, ...prev];
-              const next = [...prev]; 
-              if (!normalized.humanId && prev[idx]?.humanId) normalized.humanId = prev[idx].humanId;
-              next[idx] = normalized; 
+              const next = [...prev];
+              if (!normalized.humanId && prev[idx]?.humanId)
+                normalized.humanId = prev[idx].humanId;
+              next[idx] = normalized;
               return next;
             });
             removeUnsyncedFromStorage(temp.id);
@@ -970,7 +1688,12 @@ export default function CustomerManagement() {
               toastClassName: "react-toastify-center",
               autoClose: 1900,
             });
-          } else if (r && typeof r.status === "number" && r.status >= 200 && r.status < 300) {
+          } else if (
+            r &&
+            typeof r.status === "number" &&
+            r.status >= 200 &&
+            r.status < 300
+          ) {
             removeUnsyncedFromStorage(temp.id);
             toast.success("Server acknowledged queued customer.", {
               containerId: "center",
@@ -982,7 +1705,12 @@ export default function CustomerManagement() {
             upsertUnsyncedToStorage(mark);
           }
         } catch (err) {
-          console.warn("Sync retry failed for", temp.id, err, err?.response?.data || err?.message);
+          console.warn(
+            "Sync retry failed for",
+            temp.id,
+            err,
+            err?.response?.data || err?.message
+          );
         }
       }
     })();
@@ -991,7 +1719,8 @@ export default function CustomerManagement() {
   useEffect(() => {
     function onDocClick(e) {
       if (!ordersMenuRef.current) return;
-      if (!ordersMenuRef.current.contains(e.target)) setOrdersMenuOpen(false);
+      if (!ordersMenuRef.current.contains(e.target))
+        setOrdersMenuOpen(false);
     }
     if (ordersMenuOpen) document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
@@ -1025,13 +1754,16 @@ export default function CustomerManagement() {
     const pages = Math.max(1, Math.ceil(filtered.length / perPage));
     if (page > pages) setPage(1);
   }, [filtered.length, perPage, page]);
+
   const pages = Math.max(1, Math.ceil(filtered.length / perPage));
   const start = (page - 1) * perPage;
   const paged = filtered.slice(start, start + perPage);
+
   function goPage(n) {
     const p = Math.max(1, Math.min(n, pages));
     setPage(p);
-    if (gridRef.current) gridRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (gridRef.current)
+      gridRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
     else window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -1045,38 +1777,45 @@ export default function CustomerManagement() {
   }
 
   function handleAdd(tempOrCreated) {
-    // assign humanId and persist to unsynced storage so it survives refresh
     const unsynced = loadUnsyncedFromStorage() || [];
     let max = 0;
-    const collect = (arr) => (arr || []).forEach(c => {
-      if (!c) return;
-      const h = c.humanId ?? (typeof c.id === "number" ? `ID-${String(c.id).padStart(3,'0')}` : undefined);
-      if (h && String(h).startsWith("ID-")) {
-        const n = parseInt(String(h).replace(/^ID-/, ''), 10);
-        if (!isNaN(n)) max = Math.max(max, n);
-      }
-    });
+    const collect = (arr) =>
+      (arr || []).forEach((c) => {
+        if (!c) return;
+        const h =
+          c.humanId ??
+          (typeof c.id === "number"
+            ? `ID-${String(c.id).padStart(3, "0")}`
+            : undefined);
+        if (h && String(h).startsWith("ID-")) {
+          const n = parseInt(String(h).replace(/^ID-/, ""), 10);
+          if (!isNaN(n)) max = Math.max(max, n);
+        }
+      });
     collect(customers);
     collect(unsynced);
     max++;
-    const humanId = `ID-${String(max).padStart(3,'0')}`;
+    const humanId = `ID-${String(max).padStart(3, "0")}`;
     const item = { ...tempOrCreated, humanId };
     addUnsyncedToStorage(item);
-    setCustomers(prev => [item, ...prev]);
+    setCustomers((prev) => [item, ...prev]);
     setPage(1);
   }
 
   function handleSync(tempId, serverObj) {
-    setCustomers(prev => {
-      const idx = prev.findIndex(c => String(c.id) === String(tempId));
+    setCustomers((prev) => {
+      const idx = prev.findIndex((c) => String(c.id) === String(tempId));
       if (idx === -1) {
-        // preserve humanId from stored temp if server doesn't provide
-        const stored = loadUnsyncedFromStorage().find(u => String(u.id) === String(tempId));
-        if (stored && stored.humanId && !serverObj.humanId) serverObj.humanId = stored.humanId;
+        const stored = loadUnsyncedFromStorage().find(
+          (u) => String(u.id) === String(tempId)
+        );
+        if (stored && stored.humanId && !serverObj.humanId)
+          serverObj.humanId = stored.humanId;
         return [serverObj, ...prev];
       }
       const next = [...prev];
-      if (!serverObj.humanId && prev[idx]?.humanId) serverObj.humanId = prev[idx].humanId;
+      if (!serverObj.humanId && prev[idx]?.humanId)
+        serverObj.humanId = prev[idx].humanId;
       next[idx] = serverObj;
       return next;
     });
@@ -1092,34 +1831,48 @@ export default function CustomerManagement() {
   }
 
   function handleUpdatedCustomer(updated) {
-    setCustomers(prev => prev.map(c => String(c.id) === String(updated.id) ? updated : c));
+    setCustomers((prev) =>
+      prev.map((c) => (String(c.id) === String(updated.id) ? updated : c))
+    );
   }
 
   function handleDeletedCustomer(id) {
     if (String(id).startsWith("temp-")) removeUnsyncedFromStorage(id);
     else addDeletedToStorage(id);
-    setCustomers(prev => prev.filter(c => String(c.id) !== String(id)));
+    setCustomers((prev) => prev.filter((c) => String(c.id) !== String(id)));
   }
 
   function handleExportVisible() {
     const keysSet = new Set();
-    filtered.forEach(item => {
+    filtered.forEach((item) => {
       if (!item || typeof item !== "object") return;
-      Object.keys(item).forEach(k => {
+      Object.keys(item).forEach((k) => {
         if (k.startsWith("__")) return;
         if (typeof item[k] === "function") return;
         keysSet.add(k);
       });
     });
     const preferredOrder = [
-      "id", "humanId", "name", "email", "phone", "address", "status",
-      "orders", "balance", "lastTransaction", "lastOnline", "avatar"
+      "id",
+      "humanId",
+      "name",
+      "email",
+      "phone",
+      "address",
+      "status",
+      "orders",
+      "balance",
+      "lastTransaction",
+      "lastOnline",
+      "avatar",
     ];
 
-    const remaining = Array.from(keysSet).filter(k => !preferredOrder.includes(k));
+    const remaining = Array.from(keysSet).filter(
+      (k) => !preferredOrder.includes(k)
+    );
     remaining.sort();
 
-    const columns = [...preferredOrder.filter(k => keysSet.has(k)), ...remaining];
+    const columns = [...preferredOrder.filter((k) => keysSet.has(k)), ...remaining];
 
     if (columns.length === 0) {
       toast.info("No data to export.");
@@ -1140,23 +1893,43 @@ export default function CustomerManagement() {
       avatar: "Avatar",
     };
 
-    const header = columns.map(c => headerMap[c] || c.replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase()));
+    const header = columns.map(
+      (c) =>
+        headerMap[c] ||
+        c
+          .replace(/([A-Z])/g, " $1")
+          .replace(/^./, (s) => s.toUpperCase())
+    );
     const rows = [
       header,
-      ...filtered.map(rowObj => columns.map(col => {
-        let val = rowObj[col];
-        if (col === "id") val = rowObj.humanId ?? rowObj.id;
-        if (val === null || val === undefined) return "";
-        if (typeof val === "object") {
-          try { return JSON.stringify(val); } catch (e) { return String(val); }
-        }
-        return String(val);
-      })),
+      ...filtered.map((rowObj) =>
+        columns.map((col) => {
+          let val = rowObj[col];
+          if (col === "id") val = rowObj.humanId ?? rowObj.id;
+          if (val === null || val === undefined) return "";
+          if (typeof val === "object") {
+            try {
+              return JSON.stringify(val);
+            } catch (e) {
+              return String(val);
+            }
+          }
+          return String(val);
+        })
+      ),
     ];
-    const csv = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const csv = rows
+      .map((r) =>
+        r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+      )
+      .join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "customers.csv"; a.click(); URL.revokeObjectURL(url);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "customers.csv";
+    a.click();
+    URL.revokeObjectURL(url);
     toast.success("Export started.");
   }
 
@@ -1167,180 +1940,59 @@ export default function CustomerManagement() {
         <CustomerTopbar />
         <div className="dashboard-content cm-page-root">
           <div className="cm-container">
-            <div className="cm-top">
-              <div className="cm-top-row">
-                <div className="cm-search-wrap">
-                  <input
-                    className="cm-search-input"
-                    placeholder="Search customer..."
-                    value={query}
-                    onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-                  />
-                </div>
-
-                <div className="cm-right-controls">
-                  <button className="cm-btn cm-export-btn" onClick={handleExportVisible}>⬇️ Export</button>
-
-                  <div className="cm-add-column">
-                    <button className="cm-btn cm-add-btn" onClick={() => setAddOpen(true)}>＋ Add Customer</button>
-                    <button className="cm-btn cm-filter-btn" onClick={() => setOrdersMenuOpen(o => !o)}>⚙️ Filters</button>
-                  </div>
-                </div>
-              </div>
-              <div className="cm-tabs-row">
-                <div className="tabs-compact">
-                  {["All","Active","Blocked"].map(t => (
-                    <button key={t} className={`cm-tab ${tab === t ? "active" : ""}`} onClick={() => { setTab(t); setPage(1); }}>{t}</button>
-                  ))}
-                </div>
-
-                <div style={{ position: "relative" }} ref={ordersMenuRef}>
-                  {ordersMenuOpen && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        right: 0,
-                        top: "42px",
-                        background: "#fff",
-                        border: "1px solid rgba(16,24,40,0.06)",
-                        boxShadow: "0 12px 30px rgba(11,15,25,0.08)",
-                        borderRadius: 12,
-                        padding: 10,
-                        zIndex: 60,
-                        minWidth: 130,
-                      }}
-                      role="menu"
-                    >
-                      {[
-                        { key: "Any", label: "Order" },
-                        { key: "0-10", label: "0–10" },
-                        { key: "11-25", label: "11–25" },
-                        { key: "26+", label: "26+" },
-                      ].map((opt, idx) => (
-                        <button
-                          key={opt.key}
-                          onClick={() => { setOrdersFilter(opt.key); setOrdersMenuOpen(false); setPage(1); }}
-                          style={{
-                            display: "block",
-                            width: "100%",
-                            textAlign: "left",
-                            padding: "10px 12px",
-                            background: ordersFilter === opt.key ? "linear-gradient(180deg,#fff1ff,#fef6ff)" : "transparent",
-                            color: ordersFilter === opt.key ? "#6b46b6" : "#222",
-                            border: "none",
-                            borderRadius: 8,
-                            fontWeight: 600,
-                            fontSize: 16,
-                            cursor: "pointer",
-                            marginBottom: idx === 3 ? 0 : 8,
-                          }}
-                          role="menuitem"
-                          aria-checked={ordersFilter === opt.key}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* CARD GRID */}
-            <div ref={gridRef} className="cm-grid" style={{ marginTop: 12 }}>
-              {paged.map(c => {
-                const isSelected = selectedIds.has(c.id);
-                return (
-                  <div
-                    key={c.id}
-                    className={`cm-card ${isSelected ? "selected" : ""}`}
-                    onClick={() => setProfileOpenId(c.id)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === "Enter") setProfileOpenId(c.id); }}
-                  >
-                    <div className="cm-card-top">
-                      <label className="card-checkbox"
-                       onClick={(e) => { e.stopPropagation(); }}
-                      >
-                       <input
-                         type="checkbox"
-                         checked={isSelected}
-                         onChange={() => toggleSelect(c.id)}
-                         aria-label={`Select ${c.name}`}
-                        />
-                        <span className="checkbox-fake" />
-                    </label>
-                      <button className="card-more" onClick={(e)=>{ e.stopPropagation(); }}>⋮</button>
-                    </div>
-
-                    <div className="cm-avatar-wrap">
-                      {c.avatar ? (
-                        <img src={c.avatar} alt={c.name} className="cm-avatar" />
-                      ) : (
-                        <div className="cm-avatar cm-avatar-empty" />
-                      )}
-                    </div>
-
-                    <div className="cm-card-body">
-                      <div className="cm-card-name">{c.name}</div>
-                      <div className={`cm-status-badge ${c.status?.toLowerCase()}`}>{c.status}</div>
-
-                      <div className="card-stats">
-                        <div>
-                          <div className="stat-label">Orders</div>
-                          <div className="stat-value">{c.orders}</div>
-                        </div>
-                        <div>
-                          <div className="stat-label">Balance</div>
-                         <div className="stat-value">
-                                    ₹{(Number(c.balance?.toString().replace(/[^0-9.-]/g, "")) || 0).toLocaleString("en-IN")}
-                         </div>
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="cm-footer">
-              <div className="summary">
-                Showing {filtered.length === 0 ? 0 : start + 1}–{Math.min(start + perPage, filtered.length)} of {filtered.length}
-              </div>
-
-              <div className="cm-pager" role="navigation" aria-label="Pagination">
-                <button className="cm-page" onClick={() => goPage(page - 1)} disabled={page === 1}>«</button>
-                {Array.from({ length: pages }).map((_, i) => {
-                  const p = i + 1;
-                  return (
-                    <button
-                      key={p}
-                      className={`cm-page ${page === p ? "active" : ""}`}
-                      onClick={() => goPage(p)}
-                      aria-current={page === p ? "page" : undefined}
-                    >
-                      {p}
-                    </button>
-                  );
-                })}
-                <button className="cm-page" onClick={() => goPage(page + 1)} disabled={page === pages}>»</button>
-              </div>
-            </div>
-
+            {/* TOP SECTION as a child component */}
+           <CustomerToolbar
+  query={query}
+  setQuery={setQuery}
+  tab={tab}
+  setTab={setTab}
+  ordersFilter={ordersFilter}
+  setOrdersFilter={setOrdersFilter}
+  ordersMenuOpen={ordersMenuOpen}
+  setOrdersMenuOpen={setOrdersMenuOpen}
+  ordersMenuRef={ordersMenuRef}
+  setPage={setPage}
+  handleExportVisible={handleExportVisible}
+  onOpenAdd={() => setAddOpen(true)}
+/>
+            {/* GRID + PAGINATION as a child component */}
+            <CustomerGridSection
+              paged={paged}
+              filteredLength={filtered.length}
+              start={start}
+              perPage={perPage}
+              page={page}
+              pages={pages}
+              goPage={goPage}
+              selectedIds={selectedIds}
+              toggleSelect={toggleSelect}
+              setProfileOpenId={setProfileOpenId}
+              gridRef={gridRef}
+            />
           </div>
         </div>
       </div>
+
       {profileOpenId && (
         <CustomerModal
           id={profileOpenId}
-          initialCustomer={customers.find(c => String(c.id) === String(profileOpenId))}
+          initialCustomer={customers.find(
+            (c) => String(c.id) === String(profileOpenId)
+          )}
           onClose={() => setProfileOpenId(null)}
           onUpdated={handleUpdatedCustomer}
           onDeleted={handleDeletedCustomer}
         />
       )}
-      {addOpen && <AddCustomerModal onClose={() => setAddOpen(false)} onAdd={handleAdd} onSync={handleSync} />}
+
+      {addOpen && (
+        <AddCustomerModal
+          onClose={() => setAddOpen(false)}
+          onAdd={handleAdd}
+          onSync={handleSync}
+        />
+      )}
+
       <ToastContainer
         containerId="center"
         position="top-center"
