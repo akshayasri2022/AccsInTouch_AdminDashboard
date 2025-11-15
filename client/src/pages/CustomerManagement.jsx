@@ -1552,7 +1552,6 @@ function CustomerGridSection({
         })}
       </div>
 
-      {/* FOOTER / PAGINATION */}
       <div className="cm-footer">
         <div className="summary">
           Showing {filteredLength === 0 ? 0 : start + 1}–
@@ -1593,6 +1592,48 @@ function CustomerGridSection({
   );
 }
 
+// ========== Helpers for linking orders → customers ==========
+
+function normalizeId(value) {
+  if (value === null || value === undefined) return null;
+  return String(value);
+}
+
+// take "₹1,200", "$500", "1200" etc → 1200 (number)
+function parseBalance(value) {
+  if (value === null || value === undefined) return 0;
+  const match = String(value).match(/-?\d+(\.\d+)?/);
+  return match ? Number(match[0]) : 0;
+}
+
+// find the amount for an order (we use basicPricing from OrderedProduct)
+function extractOrderAmount(order) {
+  if (!order) return 0;
+  const raw =
+    order.total ??
+    order.amount ??
+    order.OrderedProduct?.basicPricing ??
+    order.OrderedProduct?.price ??
+    0;
+
+  if (typeof raw === "number") {
+    return isNaN(raw) ? 0 : raw;
+  }
+
+  const match = String(raw).match(/-?\d+(\.\d+)?/);
+  const num = match ? Number(match[0]) : 0;
+  return isNaN(num) ? 0 : num;
+}
+
+// we store balance as a simple numeric string; card already adds "₹"
+function formatBalanceNumeric(num) {
+  if (!num || isNaN(num)) return "0";
+  return String(Math.round(num));
+}
+
+
+/* ===================== Main Customer Management ===================== */
+
 /* ===================== Main Customer Management ===================== */
 
 export default function CustomerManagement() {
@@ -1608,6 +1649,8 @@ export default function CustomerManagement() {
   const [ordersMenuOpen, setOrdersMenuOpen] = useState(false);
   const ordersMenuRef = useRef(null);
   const gridRef = useRef(null);
+
+  // ---------- 1) Load customers from API + local cache ----------
 
   async function fetchCustomers() {
     try {
@@ -1642,6 +1685,7 @@ export default function CustomerManagement() {
     } catch (err) {
       console.error("GET /customer failed:", err);
       toast.info("Failed to load customers from server — showing local data.");
+
       const unsynced = assignHumanIdsToUnsynced(
         loadUnsyncedFromStorage() || [],
         MOCK_CUSTOMERS
@@ -1658,8 +1702,67 @@ export default function CustomerManagement() {
     }
   }
 
+  // ---------- 2) NEW: recompute Orders & Balance from /Order list ----------
+
+  async function recalcCustomerStatsFromOrders() {
+    try {
+      const res = await axiosAPI.get("/Order");
+      const raw = unwrap(res);
+      const orders = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data)
+        ? raw.data
+        : [];
+
+      // build stats by customer id
+      const statsMap = new Map(); // key: customerId string → { count, total }
+
+      orders.forEach((order) => {
+        const custId = normalizeId(
+          order.custID ??
+            order.customerId ??
+            order.customer_id ??
+            order.orderCustomer?.id ??
+            order.orderCustomer?.customerId ??
+            order.orderCustomer?._id
+        );
+        if (!custId) return;
+
+        const amount = extractOrderAmount(order);
+        const prev = statsMap.get(custId) || { count: 0, total: 0 };
+        prev.count += 1;
+        prev.total += amount;
+        statsMap.set(custId, prev);
+      });
+
+      // apply stats to customers list
+      setCustomers((prev) =>
+        prev.map((c) => {
+          const cid = normalizeId(
+            c.id ?? c.customerId ?? c.customerID ?? c._id ?? c.Id
+          );
+          const stat = cid ? statsMap.get(cid) : null;
+          if (!stat) return c;
+
+          return {
+            ...c,
+            orders: stat.count,
+            balance: formatBalanceNumeric(stat.total),
+          };
+        })
+      );
+    } catch (err) {
+      console.warn("Failed to recalc customer stats from orders", err);
+    }
+  }
+
+  // ---------- 3) initial load: customers + stats, plus background sync ----------
+
   useEffect(() => {
-    fetchCustomers();
+    fetchCustomers().then(() => {
+      // once customers are loaded, compute orders/balance
+      recalcCustomerStatsFromOrders();
+    });
 
     // background sync of any queued unsynced customers
     (async function trySyncStored() {
@@ -1728,8 +1831,42 @@ export default function CustomerManagement() {
           );
         }
       }
+
+      // after any sync changes, recompute orders/balance again
+      recalcCustomerStatsFromOrders();
     })();
   }, []);
+
+  // ---------- 4) When orders change in OrderManagement, recompute stats ----------
+
+  useEffect(() => {
+    async function handleOrderChangeEvent() {
+      // simply recompute from /Order every time
+      await recalcCustomerStatsFromOrders();
+    }
+
+    function onOrderChanged(e) {
+      if (!e?.detail) return;
+      handleOrderChangeEvent();
+    }
+
+    function onStorage(e) {
+      if (e.key !== "om_last_order_change" || !e.newValue) return;
+      handleOrderChangeEvent();
+    }
+
+    // same-tab order changes
+    window.addEventListener("order-changed", onOrderChanged);
+    // cross-tab / after navigation
+    window.addEventListener("storage", onStorage);
+
+    return () => {
+      window.removeEventListener("order-changed", onOrderChanged);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+
+  // ---------- 5) close orders filter dropdown on outside click ----------
 
   useEffect(() => {
     function onDocClick(e) {
@@ -1741,6 +1878,8 @@ export default function CustomerManagement() {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [ordersMenuOpen]);
 
+  // ---------- 6) filtering + pagination ----------
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
 
@@ -1751,6 +1890,7 @@ export default function CustomerManagement() {
       if (ordersFilter === "26+") return c.orders >= 26;
       return true;
     }
+
     return customers.filter((c) => {
       if (tab === "Active" && c.status !== "Active") return false;
       if (tab === "Blocked" && c.status !== "Blocked") return false;
@@ -1781,6 +1921,8 @@ export default function CustomerManagement() {
       gridRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
     else window.scrollTo({ top: 0, behavior: "smooth" });
   }
+
+  // ---------- 7) selection, add, sync, update, delete, export ----------
 
   function toggleSelect(id) {
     setSelectedIds((s) => {
@@ -1845,7 +1987,7 @@ export default function CustomerManagement() {
     }
   }
 
-  // 🔁 central handler for updates coming from modal
+  // central handler for updates coming from modal
   function handleUpdatedCustomer(updated) {
     if (!updated) return;
 
@@ -1869,7 +2011,6 @@ export default function CustomerManagement() {
       normalized.name = normalized.customerName;
     }
 
-    // 1) update CustomerManagement list
     setCustomers((prev) =>
       prev.map((c) => {
         const cid = String(c.id ?? c.customerId ?? c._id ?? "");
@@ -1877,7 +2018,7 @@ export default function CustomerManagement() {
       })
     );
 
-    // 2) notify OrderManagement (and other pages)
+    // also broadcast to OrderManagement (if you use that link)
     broadcastCustomerUpdate(normalized);
   }
 
@@ -1917,7 +2058,10 @@ export default function CustomerManagement() {
     );
     remaining.sort();
 
-    const columns = [...preferredOrder.filter((k) => keysSet.has(k)), ...remaining];
+    const columns = [
+      ...preferredOrder.filter((k) => keysSet.has(k)),
+      ...remaining,
+    ];
 
     if (columns.length === 0) {
       toast.info("No data to export.");
@@ -1977,6 +2121,8 @@ export default function CustomerManagement() {
     URL.revokeObjectURL(url);
     toast.success("Export started.");
   }
+
+  // ---------- 8) JSX ----------
 
   return (
     <div className="dashboard-root">
@@ -2055,3 +2201,7 @@ export default function CustomerManagement() {
     </div>
   );
 }
+
+
+
+

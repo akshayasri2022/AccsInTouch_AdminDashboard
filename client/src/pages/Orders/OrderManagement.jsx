@@ -106,18 +106,21 @@ const OrderManagement = () => {
   const normalizeId = (v) => (v === null || v === undefined ? null : String(v));
 
   // Broadcast helper for cross-page / cross-tab order change notifications
-  function broadcastOrderChange(type, order) {
-    try {
-      const payload = { type, order };
-      window.dispatchEvent(new CustomEvent('order-changed', { detail: payload }));
-      localStorage.setItem(
-        'om_last_order_change',
-        JSON.stringify({ ts: Date.now(), ...payload })
-      );
-    } catch (err) {
-      console.warn('broadcastOrderChange failed', err);
-    }
+ // Broadcast helper for cross-page / cross-tab order change notifications
+// Broadcast helper for cross-page / cross-tab order change notifications
+function broadcastOrderChange(type, order) {
+  try {
+    const payload = { type, order };
+    window.dispatchEvent(new CustomEvent("order-changed", { detail: payload }));
+    localStorage.setItem(
+      "om_last_order_change",
+      JSON.stringify({ ts: Date.now(), payload })
+    );
+  } catch (err) {
+    console.warn("broadcastOrderChange failed", err);
   }
+}
+
 
   const [newOrder, setNewOrder] = useState({
     custID: '',
