@@ -462,3 +462,27 @@
     margin: 20px;
   }
 }
+
+.addProducttabs {
+  display: flex;
+  gap: 24px;
+  margin-top: 12px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.addProducttab {
+  background: none;
+  border: none;
+  padding: 8px 0;
+  font-size: 14px;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.addProducttab.active {
+  font-weight: 600;
+  color: #111827;
+  border-bottom: 2px solid #6366f1;
+  margin-bottom: -1px;
+}

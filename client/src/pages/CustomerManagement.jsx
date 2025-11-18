@@ -985,6 +985,8 @@ async function handleToggleStatus() {
 
 /* ===================== Add Customer Modal ===================== */
 
+
+
 function AddCustomerModal({ onClose, onAdd, onSync }) {
   useEffect(() => {
     function onKey(e) {
@@ -1007,6 +1009,29 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [photoError, setPhotoError] = useState("");
+
+  const defaultAvatar =
+    "https://cdn-icons-png.flaticon.com/512/847/847969.png";
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setPhotoError("Image size should be less than 5MB");
+      return;
+    }
+
+    setPhotoError("");
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPhotoPreview(reader.result); // data URL used for preview + avatar
+    };
+    reader.readAsDataURL(file);
+  };
+
   function validate() {
     const e = {};
     if (!name.trim()) e.name = "Required";
@@ -1023,7 +1048,7 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
     setSubmitting(true);
     const payload = {
       name: name.trim(),
-      avatar: null,
+      avatar: photoPreview || null,
       orders: 0,
       balance: "$0",
       status: "Active",
@@ -1124,7 +1149,11 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
       role="dialog"
       aria-modal="true"
     >
-      <div className="cm-add-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="cm-add-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: "90vh", overflowY: "auto" }} // scroll if needed
+      >
         <button className="cm-close" onClick={onClose} aria-label="Close">
           ✕
         </button>
@@ -1153,6 +1182,86 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
             {errors.email && (
               <div className="field-error">{errors.email}</div>
             )}
+          </div>
+
+          {/* Customer Photo */}
+          <div
+            className="form-row"
+            style={{ display: "block", marginBottom: 12 }}
+          >
+            <label className="label" style={{ marginBottom: 6 }}>
+              Customer Photo
+            </label>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+              }}
+            >
+              {/* avatar preview */}
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: "999px",
+                  overflow: "hidden",
+                  border: "1px solid #e5e7eb",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "#f9fafb",
+                }}
+              >
+                <img
+                  src={photoPreview || defaultAvatar}
+                  alt="Customer"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                  }}
+                />
+              </div>
+
+              {/* upload button & hint */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <input
+                  id="customer-photo"
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={handlePhotoChange}
+                />
+                <label
+                  htmlFor="customer-photo"
+                  className="cm-btn ghost"
+                  style={{ padding: "6px 13px", fontSize: 13, cursor: "pointer" }}
+                >
+                  Upload Photo
+                </label>
+
+                {photoError && (
+                  <div
+                    className="field-error"
+                    style={{ marginTop: -1, fontSize: 12 }}
+                  >
+                    {photoError}
+                  </div>
+                )}
+
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: "#9ca3af",
+                    marginTop: -2,
+                  }}
+                >
+                  JPG / PNG, max 5MB
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="phone-row">
@@ -1319,6 +1428,7 @@ function AddCustomerModal({ onClose, onAdd, onSync }) {
     </div>
   );
 }
+
 
 /* ===================== Toolbar component ===================== */
 
@@ -1630,9 +1740,6 @@ function formatBalanceNumeric(num) {
   if (!num || isNaN(num)) return "0";
   return String(Math.round(num));
 }
-
-
-/* ===================== Main Customer Management ===================== */
 
 /* ===================== Main Customer Management ===================== */
 

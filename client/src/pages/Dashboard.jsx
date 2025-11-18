@@ -14,6 +14,9 @@ import "../styles/Dashboard.css";
 import "../styles/StatsCard.css";
 import "../styles/Panels.css";
 
+// 🔹 NEW
+import { useNavigate } from "react-router-dom";
+
 const API_URL = 'https://acc-in-touch-1.onrender.com/api';
 
 export default function Dashboard() {
@@ -28,6 +31,9 @@ export default function Dashboard() {
   const [cartTimeFilter, setCartTimeFilter] = useState('all');
   const [customersTimeFilter, setCustomersTimeFilter] = useState('all');
   const [ordersTimeFilter, setOrdersTimeFilter] = useState('all');
+
+  // 🔹 NEW – for navigation
+  const navigate = useNavigate();
 
   // Helper to get auth headers
   const getAuthHeaders = () => {
@@ -298,40 +304,44 @@ export default function Dashboard() {
 
   // Stats cards configuration
   const statsCards = [
-    {
-      title: "Abandoned Cart",
-      value: stats.abandonedCart.percentage,
-      subtitle: stats.abandonedCart.growth,
-      topMeta: "Customers",
-      meta: [{ label: "Customers", value: String(stats.abandonedCart.count) }],
-      variant: "cart",
-      timeFilter: cartTimeFilter,
-      onTimeFilterChange: setCartTimeFilter,
-    },
-    {
-      title: "Customers",
-      value: String(stats.customers.total),
-      subtitle: stats.customers.growth,
-      topMeta: "Active",
-      meta: [{ label: "Active", value: String(stats.customers.active) }],
-      variant: "customers",
-      timeFilter: customersTimeFilter,
-      onTimeFilterChange: setCustomersTimeFilter,
-    },
-    {
-      title: "All Orders",
-      value: String(stats.orders.total),
-      subtitle: "—",
-      topMeta: "",
-      meta: [
-        { label: "Pending", value: String(stats.orders.pending) },
-        { label: "Completed", value: String(stats.orders.completed), extra: stats.orders.completedGrowth },
-      ],
-      variant: "orders",
-      timeFilter: ordersTimeFilter,
-      onTimeFilterChange: setOrdersTimeFilter,
-    },
-  ];
+  {
+    title: "Abandoned Cart",
+    value: stats.abandonedCart.percentage,
+    subtitle: stats.abandonedCart.growth,
+    topMeta: "Customers",
+    meta: [{ label: "Customers", value: String(stats.abandonedCart.count) }],
+    variant: "cart",
+    timeFilter: cartTimeFilter,
+    onTimeFilterChange: setCartTimeFilter,
+    onClick: () => navigate("/orderManagement"),          // ✅ correct route
+  },
+  {
+    title: "Customers",
+    value: String(stats.customers.total),
+    subtitle: stats.customers.growth,
+    topMeta: "Active",
+    meta: [{ label: "Active", value: String(stats.customers.active) }],
+    variant: "customers",
+    timeFilter: customersTimeFilter,
+    onTimeFilterChange: setCustomersTimeFilter,
+    onClick: () => navigate("/customerManagement"),       // ✅ correct route
+  },
+  {
+    title: "All Orders",
+    value: String(stats.orders.total),
+    subtitle: "—",
+    topMeta: "",
+    meta: [
+      { label: "Pending", value: String(stats.orders.pending) },
+      { label: "Completed", value: String(stats.orders.completed), extra: stats.orders.completedGrowth },
+    ],
+    variant: "orders",
+    timeFilter: ordersTimeFilter,
+    onTimeFilterChange: setOrdersTimeFilter,
+    onClick: () => navigate("/orderManagement"),          // ✅ correct route
+  },
+];
+
 
   if (loading) {
     return (

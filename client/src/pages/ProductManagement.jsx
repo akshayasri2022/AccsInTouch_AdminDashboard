@@ -380,16 +380,7 @@ if (filterStatus === "30days") {
 
                 <div className="right-filters">
                   {/* Right-side search with icon */}
-                  <div className="filter-search-wrapper">
-                    <FaSearch className="filter-search-icon" />
-                    <input
-                      className="filter-input"
-                      placeholder="Search product..."
-                      value={rightSearch}
-                      onChange={(e) => setRightSearch(e.target.value)}
-                    />
-                  </div>
-
+                  
                   {/* Select date with icon */}
                   <div className="select-wrapper">
                     <FaCalendarAlt className="select-icon" />

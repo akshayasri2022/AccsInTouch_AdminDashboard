@@ -11,6 +11,7 @@ export default function StatsCard({
   variant = "orders",
   timeFilter = "all",
   onTimeFilterChange,
+  onClick,              // 🔹 NEW
 }) {
   const iconMap = {
     cart: <FaShoppingCart />,
@@ -24,27 +25,30 @@ export default function StatsCard({
   const subtitleClass =
     trimmed.startsWith("-") ? "sub down" : trimmed.startsWith("+") ? "sub up" : "sub neutral";
 
-  // avoid rendering topMeta if same label exists in meta
   const showTopMeta = topMeta && !meta.some((m) => m.label === topMeta);
 
-  // Handle dropdown change with logging
   const handleFilterChange = (e) => {
     const newValue = e.target.value;
     console.log(`StatsCard ${title} - Filter changed to:`, newValue);
-    
+
     if (onTimeFilterChange) {
       onTimeFilterChange(newValue);
     }
   };
 
   return (
-    <div className={`stats-card stats-${variant}`}>
+    <div
+      className={`stats-card stats-${variant}`}
+      onClick={onClick}                       // 🔹 make card clickable
+      style={{ cursor: onClick ? "pointer" : "default" }}  // 🔹 show hand cursor
+    >
       <div className="stats-top">
         <div className="icon-wrap">{icon}</div>
-        <select 
+        <select
           className="stats-dropdown"
           value={timeFilter}
           onChange={handleFilterChange}
+          onClick={(e) => e.stopPropagation()}   // 🔹 don't trigger card click when using dropdown
         >
           <option value="all">All Time</option>
           <option value="week">Last 7 Days</option>

@@ -896,157 +896,165 @@ const matchesSearch =
             ))}
           </div>
 
-          <div className="orders-table-container">
-            <table className="orders-table">
-              <thead>
-                <tr>
-                  <th>
-                    <input
-                      type="checkbox"
-                      onChange={toggleSelectAll}
-                      checked={
-                        selectedOrders.length === filteredOrders.length &&
-                        filteredOrders.length > 0
-                      }
-                    />
-                  </th>
-                  <th
-                    onClick={() => handleSort('orderID')}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    Order ID{' '}
-                    {sortConfig.key === 'orderID' &&
-                      (sortConfig.direction === 'asc' ? (
-                        <ChevronUp size={14} />
-                      ) : (
-                        <ChevronDown size={14} />
-                      ))}
-                  </th>
-                  <th>Product</th>
-                  <th
-                    onClick={() => handleSort('orderDate')}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    Date{' '}
-                    {sortConfig.key === 'orderDate' &&
-                      (sortConfig.direction === 'asc' ? (
-                        <ChevronUp size={14} />
-                      ) : (
-                        <ChevronDown size={14} />
-                      ))}
-                  </th>
-                  <th>Customer</th>
-                  <th
-                    onClick={() => handleSort('total')}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    Total{' '}
-                    {sortConfig.key === 'total' &&
-                      (sortConfig.direction === 'asc' ? (
-                        <ChevronUp size={14} />
-                      ) : (
-                        <ChevronDown size={14} />
-                      ))}
-                  </th>
-                  <th>Payment</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedOrders.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan="9"
-                      style={{
-                        textAlign: 'center',
-                        padding: '40px',
-                        color: '#666'
-                      }}
-                    >
-                      {loading ? 'Loading orders...' : 'No orders found'}
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedOrders.map((order) => (
-                    <tr key={order.id}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={selectedOrders.includes(order.id)}
-                          onChange={() => toggleOrderSelection(order.id)}
-                        />
-                      </td>
-                      <td>
-                        <span className="order-id">{order.orderID}</span>
-                      </td>
-                      <td>
-                        <div className="product-cell">
-                          <div className="product-image-placeholder" />
-                          <div>
-                            <div className="product-name">
-                              {order.OrderedProduct?.productName || 'N/A'}
-                            </div>
-                            <div className="product-variants">
-                              {order.OrderedProduct?.variants ?? 0} Variants
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>{order.orderDate || 'N/A'}</td>
-                     <td>{order.orderCustomer?.customerName || order.orderCustomer?.name || "N/A"}</td>
+       <div className="orders-table-container">
+  <table className="orders-table">
+    <thead>
+      <tr>
+        <th style={{ textTransform: 'none' }}>
+          <input
+            type="checkbox"
+            onChange={toggleSelectAll}
+            checked={
+              selectedOrders.length === filteredOrders.length &&
+              filteredOrders.length > 0
+            }
+          />
+        </th>
+        <th
+          onClick={() => handleSort('orderID')}
+          style={{ cursor: 'pointer', textTransform: 'none' }} // <-- FIX APPLIED
+        >
+          Order ID{' '}
+          {sortConfig.key === 'orderID' &&
+            (sortConfig.direction === 'asc' ? (
+              <ChevronUp size={14} />
+            ) : (
+              <ChevronDown size={14} />
+            ))}
+        </th>
+        <th style={{ textTransform: 'none' }}>Product</th> {/* <-- FIX APPLIED */}
+        <th
+          onClick={() => handleSort('orderDate')}
+          style={{ cursor: 'pointer', textTransform: 'none' }} // <-- FIX APPLIED
+        >
+          Date{' '}
+          {sortConfig.key === 'orderDate' &&
+            (sortConfig.direction === 'asc' ? (
+              <ChevronUp size={14} />
+            ) : (
+              <ChevronDown size={14} />
+            ))}
+        </th>
+        <th style={{ textTransform: 'none' }}>Customer</th> {/* <-- FIX APPLIED */}
+        <th
+          onClick={() => handleSort('total')}
+          style={{ cursor: 'pointer', textTransform: 'none' }} // <-- FIX APPLIED
+        >
+          Total{' '}
+          {sortConfig.key === 'total' &&
+            (sortConfig.direction === 'asc' ? (
+              <ChevronUp size={14} />
+            ) : (
+              <ChevronDown size={14} />
+            ))}
+        </th>
+        <th style={{ textTransform: 'none' }}>Payment</th> {/* <-- FIX APPLIED */}
+        <th style={{ textTransform: 'none' }}>Status</th> {/* <-- FIX APPLIED */}
+        <th style={{ textTransform: 'none' }}>Actions</th> {/* <-- FIX APPLIED */}
+      </tr>
+    </thead>
+    <tbody>
+      {paginatedOrders.length === 0 ? (
+        <tr>
+          <td
+            colSpan="9"
+            style={{
+              textAlign: 'center',
+              padding: '40px',
+              color: '#666'
+            }}
+          >
+            {loading ? 'Loading orders...' : 'No orders found'}
+          </td>
+        </tr>
+      ) : (
+        paginatedOrders.map((order) => (
+          <tr key={order.id}>
+            <td>
+              <input
+                type="checkbox"
+                checked={selectedOrders.includes(order.id)}
+                onChange={() => toggleOrderSelection(order.id)}
+              />
+            </td>
+            <td>
+              <span className="order-id">{order.orderID}</span>
+            </td>
+            <td>
+              <div className="product-cell">
+                <div className="product-image-placeholder" />
+                <div>
+                  <div className="product-name">
+                    {order.OrderedProduct?.productName || 'N/A'}
+                  </div>
+                  <div className="product-variants">
+                    {order.OrderedProduct?.variants ?? 0} Variants
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td>{order.orderDate || 'N/A'}</td>
+            
+            {/* Customer Name Fix (Kept from previous turn) */}
+            <td style={{ textTransform: 'capitalize' }}>
+              {(
+                order.orderCustomer?.customerName || 
+                order.orderCustomer?.name || 
+                ''
+              ).toLowerCase() || 'N/A'}
+            </td>
 
-                      <td>
-                        ₹
-                        {order.OrderedProduct?.basicPricing != null
-                          ? Number(
-                              order.OrderedProduct.basicPricing
-                            ).toFixed(2)
-                          : '0.00'}
-                      </td>
-                      <td>
-                        {displayEnumValue(order.paymentType) || 'N/A'}
-                      </td>
-                      <td>
-                        <span
-                          className={`status-badge ${getStatusClass(
-                            order.orderStatus
-                          )}`}
-                        >
-                          {displayEnumValue(order.orderStatus)}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="action-icons">
-                          <button
-                            className="icon-btn"
-                            onClick={() => handleViewOrder(order)}
-                            title="View"
-                          >
-                            <Eye size={16} />
-                          </button>
-                          <button
-                            className="icon-btn"
-                            onClick={() => handleEditOrder(order)}
-                            title="Edit"
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                          <button
-                            className="icon-btn"
-                            onClick={() => handleDeleteOrder(order)}
-                            title="Delete"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+            <td>
+              ₹
+              {order.OrderedProduct?.basicPricing != null
+                ? Number(
+                    order.OrderedProduct.basicPricing
+                  ).toFixed(2)
+                : '0.00'}
+            </td>
+            <td>
+              {displayEnumValue(order.paymentType) || 'N/A'}
+            </td>
+            <td>
+              <span
+                className={`status-badge ${getStatusClass(
+                  order.orderStatus
+                )}`}
+              >
+                {displayEnumValue(order.orderStatus)}
+              </span>
+            </td>
+            <td>
+              <div className="action-icons">
+                <button
+                  className="icon-btn"
+                  onClick={() => handleViewOrder(order)}
+                  title="View"
+                >
+                  <Eye size={16} />
+                </button>
+                <button
+                  className="icon-btn"
+                  onClick={() => handleEditOrder(order)}
+                  title="Edit"
+                >
+                  <Edit2 size={16} />
+                </button>
+                <button
+                  className="icon-btn"
+                  onClick={() => handleDeleteOrder(order)}
+                  title="Delete"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </td>
+          </tr>
+        ))
+      )}
+    </tbody>
+  </table>
+</div>
 
           {filteredOrders.length > 0 && (
             <div className="pagination">
