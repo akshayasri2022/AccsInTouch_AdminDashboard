@@ -70,7 +70,7 @@ export default function Sidebar() {
                             <img src={LOGO} alt="Accs In-Touch Logo" className="logo-img" />
 
             </div>
-            <span className="logo-text">Accs In-Touch</span>
+            <span className="logo-text">Accs In Touch</span>
           </div>
         </div>
 
