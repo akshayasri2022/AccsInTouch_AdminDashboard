@@ -20,25 +20,25 @@ import OrderTopbar from '../../components/OrderTopbar';
 const transformToDbEnum = (displayValue, type) => {
   const mappings = {
     paymentType: {
-      'Cash on Delivery': 'CashOnDelivery',
-      UPI: 'UPI',
-      'Credit Card': 'CreditCard',
-      'Debit Card': 'DebitCard',
-      'Net Banking': 'NetBanking'
+      'Cash on Delivery': 'Cash on Delivery',  // ✅
+      'UPI': 'UPI',                             // ✅
+      'Credit Card': 'Credit Card',             // ✅
+      'Debit Card': 'Debit Card',               // ✅
+      'Net Banking': 'Net Banking',             // ✅
     },
     orderType: {
-      'Marketplace Order': 'MarketplaceOrder',
-      'Website Order': 'WebsiteOrder',
-      'In-Store Purchase': 'InStorePurchase'
+      'Marketplace Order': 'Marketplace Order', // ✅
+      'Website Order': 'Website Order',         // ✅
+      'In-Store Purchase': 'In-Store Purchase', // ✅
     },
     orderStatus: {
-      Pending: 'Pending',
-      Confirmed: 'Confirmed',
-      Packed: 'Packed',
-      Shipped: 'Shipped',
-      'Out for Delivery': 'OutForDelivery',
-      Delivered: 'Delivered',
-      Completed: 'Completed'
+      'Pending': 'Pending',
+      'Confirmed': 'Confirmed',
+      'Packed': 'Packed',
+      'Shipped': 'Shipped',
+      'Out for Delivery': 'Out for Delivery',   // ✅
+      'Delivered': 'Delivered',
+      'Completed': 'Completed'
     }
   };
   return mappings[type]?.[displayValue] || displayValue;
@@ -100,7 +100,7 @@ const OrderManagement = () => {
   const [ordersData, setOrdersData] = useState([]);
   const [tempCustomerId, setTempCustomerId] = useState(null);
 
-  const API_URL = 'https://acc-in-touch-1.onrender.com/api';
+  const API_URL = 'http://localhost:5000/api';
 
   // Helper: normalize id to string (null-safe)
   const normalizeId = (v) => (v === null || v === undefined ? null : String(v));

@@ -42,7 +42,7 @@ export default function ProductTable({
         setLoading(true);
         setError("");
         const res = await axios.get(
-          "https://acc-in-touch-1.onrender.com/api/Product"
+          "http://localhost:5000/api/Product"
         );
         if (canceled) return;
         setProducts(res.data || []);
@@ -187,7 +187,7 @@ export default function ProductTable({
       setShowViewModal(true);
     } else {
       axios
-        .get(`https://acc-in-touch-1.onrender.com/api/Product/${id}`)
+        .get(`http://localhost:5000/api/Product/${id}`)
         .then((res) => {
           setViewProduct(res.data || null);
           setShowViewModal(true);
@@ -207,7 +207,7 @@ export default function ProductTable({
   const confirmDelete = async () => {
     try {
       await axios.delete(
-        `https://acc-in-touch-1.onrender.com/api/Product/${deleteId}`
+        `http://localhost:5000/api/Product/${deleteId}`
       );
       setProducts((prev) =>
         prev.filter((p) => {

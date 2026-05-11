@@ -23,7 +23,7 @@ export default function Sidebar() {
       
       // Call the logout API
       await axios.post(
-        'https://acc-in-touch-1.onrender.com/api/logout',
+        'http://localhost:5000/api/logout',
         {},
         {
           headers: {

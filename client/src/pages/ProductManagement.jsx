@@ -44,7 +44,7 @@ export default function ProductManagement() {
         setLoading(true);
         setError("");
         const res = await axios.get(
-          "https://acc-in-touch-1.onrender.com/api/Product"
+          "http://localhost:5000/api/Product"
         );
         console.log(res, "responseProducts");
         setProducts(res.data || []);
@@ -465,7 +465,7 @@ if (filterStatus === "30days") {
               >
                 <option value="">All categories</option>
                 {/* Static options; you can switch to categoryOptions.map(...) if you want dynamic */}
-                <option value="Hair Bows">Hair Bows</option>
+                <option value="HairBows">Hair Bows</option>
                 <option value="Claws">Claws</option>
                 <option value="Earrings">Earrings</option>
                 <option value="Scrunchies">Scrunchies</option>

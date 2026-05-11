@@ -7,7 +7,7 @@ const cors = require("cors");
 const http = require("http");
 const path = require("path");
 const app = express();
-const PORT = process.env.DB_PORT;
+const PORT = process.env.PORT || 5000;
 
 const userRouter = require("./api/routers/userRouter");
 const authRouter = require("./api/routers/authRouter");
@@ -51,7 +51,7 @@ const server = http.createServer(app);
     console.log("✅ Database synchronized");
 
     server.listen(PORT, () => {
-      console.log(`🚀 Server running at https://acc-in-touch-1.onrender.com/api:${PORT}`);
+      console.log(`🚀 Server running at http://localhost:${PORT}`);
     });
 
   } catch (err) {

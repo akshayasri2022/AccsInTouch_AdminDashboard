@@ -53,7 +53,7 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
       try {
         setLoadingProducts(true);
         const res = await axios.get(
-          "https://acc-in-touch-1.onrender.com/api/Product"
+          "http://localhost:5000/api/Product"
         );
         setProducts(res.data);
       } catch (err) {
@@ -206,7 +206,7 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
       }
 
       const res = await axios.post(
-        "https://acc-in-touch-1.onrender.com/api/Product",
+        "http://localhost:5000/api/Product",
         data,
         {
           headers: { "Content-Type": "multipart/form-data" },

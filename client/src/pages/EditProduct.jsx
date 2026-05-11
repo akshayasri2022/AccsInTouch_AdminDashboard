@@ -123,7 +123,7 @@ export default function EditProduct() {
       setLoading(true);
       try {
         const resp = await axios.get(
-          `https://acc-in-touch-1.onrender.com/api/Product/${id}`,
+          `http://localhost:5000/api/Product/${id}`,
           { timeout: 12000, signal: controller.signal }
         );
         const data = resp.data || {};
@@ -355,10 +355,10 @@ export default function EditProduct() {
         formData.append("image_url", JSON.stringify({ url: cleanUrls[0] }));
       }
 
-      console.log("Sending FormData to:", `https://acc-in-touch-1.onrender.com/api/Product/${id}`);
+      console.log("Sending FormData to:", `http://localhost:5000/api/Product/${id}`);
 
       const resp = await axios.put(
-        `https://acc-in-touch-1.onrender.com/api/Product/${id}`,
+        `http://localhost:5000/api/Product/${id}`,
         formData,
         { 
           headers: { "Content-Type": "multipart/form-data" },

@@ -26,9 +26,7 @@ export default function ProductTopbar() {
   Accs In Touch
 </span>
 
-        <button className="icon-btn" title="Notifications">
-          <FiBell />
-        </button>
+        
 
         <img
           src={avatarUrl}

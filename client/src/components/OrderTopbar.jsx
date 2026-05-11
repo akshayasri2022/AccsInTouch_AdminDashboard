@@ -27,9 +27,7 @@ export default function OrderTopbar() {
   Accs In Touch
 </span>
 
-        <button className="icon-btn" title="Notifications">
-          <FiBell />
-        </button>
+        
 
         <img
           src={avatarUrl}
