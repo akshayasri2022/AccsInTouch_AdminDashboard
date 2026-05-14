@@ -17,7 +17,7 @@ import "../styles/Panels.css";
 // 🔹 NEW
 import { useNavigate } from "react-router-dom";
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = `${import.meta.env.VITE_API_URL}/api`;
 
 export default function Dashboard() {
   const [customers, setCustomers] = useState([]);

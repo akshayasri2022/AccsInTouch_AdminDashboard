@@ -42,7 +42,7 @@ export default function ProductTable({
         setLoading(true);
         setError("");
         const res = await axios.get(
-          "http://localhost:5000/api/Product"
+          `${import.meta.env.VITE_API_URL}/api/Product`
         );
         if (canceled) return;
         setProducts(res.data || []);
@@ -187,7 +187,7 @@ export default function ProductTable({
       setShowViewModal(true);
     } else {
       axios
-        .get(`http://localhost:5000/api/Product/${id}`)
+        .get(`${import.meta.env.VITE_API_URL}/api/Product/${id}`)
         .then((res) => {
           setViewProduct(res.data || null);
           setShowViewModal(true);
@@ -207,7 +207,7 @@ export default function ProductTable({
   const confirmDelete = async () => {
     try {
       await axios.delete(
-        `http://localhost:5000/api/Product/${deleteId}`
+        `${import.meta.env.VITE_API_URL}/api/Product/${deleteId}`
       );
       setProducts((prev) =>
         prev.filter((p) => {

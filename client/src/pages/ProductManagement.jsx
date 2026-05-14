@@ -44,7 +44,7 @@ export default function ProductManagement() {
         setLoading(true);
         setError("");
         const res = await axios.get(
-          "http://localhost:5000/api/Product"
+          `${import.meta.env.VITE_API_URL}/api/Product`
         );
         console.log(res, "responseProducts");
         setProducts(res.data || []);

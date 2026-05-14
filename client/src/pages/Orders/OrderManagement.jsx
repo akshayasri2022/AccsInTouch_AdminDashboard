@@ -100,7 +100,7 @@ const OrderManagement = () => {
   const [ordersData, setOrdersData] = useState([]);
   const [tempCustomerId, setTempCustomerId] = useState(null);
 
-  const API_URL = 'http://localhost:5000/api';
+  const API_URL = `${import.meta.env.VITE_API_URL}/api`;
 
   // Helper: normalize id to string (null-safe)
   const normalizeId = (v) => (v === null || v === undefined ? null : String(v));

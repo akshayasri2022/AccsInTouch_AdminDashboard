@@ -53,7 +53,7 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
       try {
         setLoadingProducts(true);
         const res = await axios.get(
-          "http://localhost:5000/api/Product"
+          `${import.meta.env.VITE_API_URL}/api/Product`
         );
         setProducts(res.data);
       } catch (err) {
@@ -206,7 +206,7 @@ export default function AddProductForm({ onCancel, onProductAdded }) {
       }
 
       const res = await axios.post(
-        "http://localhost:5000/api/Product",
+        `${import.meta.env.VITE_API_URL}/api/Product`,
         data,
         {
           headers: { "Content-Type": "multipart/form-data" },

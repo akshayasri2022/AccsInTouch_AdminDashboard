@@ -123,7 +123,7 @@ export default function EditProduct() {
       setLoading(true);
       try {
         const resp = await axios.get(
-          `http://localhost:5000/api/Product/${id}`,
+          `${import.meta.env.VITE_API_URL}/api/Product/${id}`,
           { timeout: 12000, signal: controller.signal }
         );
         const data = resp.data || {};
@@ -355,10 +355,10 @@ export default function EditProduct() {
         formData.append("image_url", JSON.stringify({ url: cleanUrls[0] }));
       }
 
-      console.log("Sending FormData to:", `http://localhost:5000/api/Product/${id}`);
+      console.log("Sending FormData to:", `${import.meta.env.VITE_API_URL}/api/Product/${id}`);
 
       const resp = await axios.put(
-        `http://localhost:5000/api/Product/${id}`,
+        `${import.meta.env.VITE_API_URL}/api/Product/${id}`,
         formData,
         { 
           headers: { "Content-Type": "multipart/form-data" },
